@@ -42,37 +42,98 @@ def find_git_root(path: Path) -> Path | None:
 
 def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
     """Parse all .gitignore files in the repository into a PathSpec."""
-    spec = pathspec.PathSpec([])
-    for gitignore_path in git_root.glob("**/.gitignore"):
+    patterns = []
+    
+    # First process the root .gitignore
+    root_gitignore = git_root / ".gitignore"
+    if root_gitignore.exists():
+        try:
+            with open(root_gitignore, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                patterns.extend(lines)
+        except FileNotFoundError:
+            pass
+    
+    # Then process all other .gitignore files
+    for gitignore_path in git_root.glob("*/**/.gitignore"):  # Skip root .gitignore we processed above
         relative_dir = gitignore_path.parent.relative_to(git_root)
         try:
             with open(gitignore_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-                adjusted = [str(relative_dir / line) if relative_dir != Path('.') else line 
-                            for line in lines]
-                spec += pathspec.PathSpec.from_lines("gitwildmatch", adjusted)
+                # For patterns that don't start with '/', prefix with the directory path
+                adjusted = []
+                for line in lines:
+                    if line.startswith('/'):
+                        # This is a directory-specific absolute pattern, make it relative to this directory
+                        adjusted.append(str(relative_dir / line[1:]))
+                    else:
+                        # This is already a pattern relative to the .gitignore location
+                        adjusted.append(str(relative_dir / line))
+                patterns.extend(adjusted)
         except FileNotFoundError:
             continue
-    return spec
 
+    return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+
+def should_ignore(path: Path, git_root: Path, ignore_spec: pathspec.PathSpec) -> bool:
+    """Determine if a path should be ignored based on .gitignore rules."""
+    # Always ignore hidden files/dirs
+    if path.name.startswith("."):
+        return True
+    
+    # Check against gitignore patterns
+    if git_root and path.is_relative_to(git_root):
+        rel_path = path.relative_to(git_root)
+        # Check both the path and the path with trailing slash for directories
+        if ignore_spec.match_file(rel_path):
+            return True
+        if path.is_dir() and ignore_spec.match_file(str(rel_path) + '/'):
+            return True
+    
+    return False
+
+# Add a debugging function to test gitignore patterns
+@app.get("/api/test-gitignore/{path:path}")
+async def test_gitignore(path: str):
+    """Test if a specific path would be ignored by gitignore rules."""
+    base_path = Path.cwd()
+    git_root = find_git_root(base_path)
+    if not git_root:
+        return {"error": "No git repository found"}
+    
+    ignore_spec = parse_gitignore(git_root)
+    test_path = Path(path)
+    full_path = base_path / test_path
+    
+    result = {
+        "path": path,
+        "is_ignored": should_ignore(full_path, git_root, ignore_spec),
+        "exists": full_path.exists(),
+        "is_dir": full_path.is_dir() if full_path.exists() else None,
+    }
+    
+    # Show which patterns would match this path
+    if full_path.is_relative_to(git_root):
+        rel_path = full_path.relative_to(git_root)
+        pattern_matches = []
+        for pattern in ignore_spec.patterns:
+            if pattern.match_file(rel_path) or pattern.match_file(str(rel_path) + '/'):
+                pattern_matches.append(str(pattern))
+        result["matching_patterns"] = pattern_matches
+    
+    return result
+
+# Update the get_project_structure function to use our improved should_ignore function
 @functools.lru_cache(maxsize=32)
 def get_project_structure(base_path: Path):
     """Build the project structure tree, respecting .gitignore rules."""
     git_root = find_git_root(base_path)
     ignore_spec = parse_gitignore(git_root) if git_root else None
     
-    def should_ignore(path: Path) -> bool:
-        if path.name.startswith("."):
-            return True
-        if git_root and path.is_relative_to(git_root):
-            child_rel = path.relative_to(git_root)
-            if ignore_spec and ignore_spec.match_file(child_rel):
-                return True
-        return False
-    
     def build_tree(path: Path, root: Path):
-        if should_ignore(path):
+        if ignore_spec and should_ignore(path, git_root, ignore_spec):
             return None
+        
         entry = {
             "path": str(path.relative_to(root)),
             "name": path.name,
@@ -82,7 +143,12 @@ def get_project_structure(base_path: Path):
         
         if path.is_dir():
             try:
-                children = [child for child in path.iterdir() if not should_ignore(child)]
+                children = []
+                for child in path.iterdir():
+                    if ignore_spec and should_ignore(child, git_root, ignore_spec):
+                        continue
+                    children.append(child)
+                
                 # Sort directories first, then files, both alphabetically
                 children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
                 if len(children) > 20:
@@ -102,6 +168,7 @@ def get_project_structure(base_path: Path):
                 
         return entry
     
+    # Continue with the rest of the function as before
     root_entry = {
         "path": "",
         "name": base_path.name,
@@ -110,7 +177,12 @@ def get_project_structure(base_path: Path):
     }
     
     try:
-        children = [child for child in base_path.iterdir() if not should_ignore(child)]
+        children = []
+        for child in base_path.iterdir():
+            if ignore_spec and should_ignore(child, git_root, ignore_spec):
+                continue
+            children.append(child)
+            
         # Sort directories first, then files, both alphabetically
         children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:

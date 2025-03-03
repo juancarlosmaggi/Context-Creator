@@ -10,6 +10,53 @@
         .toggle svg.rotate-90 {
             transform: rotate(90deg);
         }
+
+        /* Floating Action Button Styles */
+        .floating-button {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 4rem;
+            height: 4rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .floating-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Selection Counter Badge */
+        .selection-counter {
+            position: fixed;
+            bottom: 6rem;
+            right: 2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            z-index: 100;
+            display: none;
+            /* Hidden by default */
+        }
+
+        .selection-counter.visible {
+            display: flex;
+        }
+
+        /* Disabled button style */
+        .floating-button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
     </style>
 </head>
 
@@ -21,10 +68,22 @@
             <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
         </div>
         <form id="process-form" action="/process/" method="post">
-            <ul id="project-structure" class="space-y-2"></ul>
-            <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Process
-                Selected</button>
+            <ul id="project-structure" class="space-y-2 mb-10"></ul>
         </form>
+
+        <!-- Selection Counter Badge -->
+        <div id="selection-counter" class="selection-counter bg-blue-100 text-blue-800">
+            <span id="selected-count">0</span>&nbsp;files selected
+        </div>
+
+        <!-- Floating Action Button -->
+        <button type="submit" form="process-form" id="process-button"
+            class="floating-button bg-blue-500 text-white hover:bg-blue-600" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+        </button>
     </div>
     <script>
         let projectStructure;
@@ -174,6 +233,49 @@
                 }
             }
             updateCheckboxStates();
+            updateSelectionCounter();
+        }
+
+        // Update selection counter
+        function updateSelectionCounter() {
+            const selectedCount = countSelectedFiles(projectStructure);
+            const counterElement = document.getElementById('selection-counter');
+            const countElement = document.getElementById('selected-count');
+            const processButton = document.getElementById('process-button');
+
+            if (selectedCount > 0) {
+                countElement.textContent = selectedCount;
+                counterElement.classList.add('visible');
+                processButton.removeAttribute('disabled');
+            } else {
+                counterElement.classList.remove('visible');
+                processButton.setAttribute('disabled', 'true');
+            }
+        }
+
+        // Count selected files (not directories)
+        function countSelectedFiles(root) {
+            let count = 0;
+
+            // Function to recursively count selected files
+            function countFiles(node) {
+                if (!node) return;
+
+                // Count this node if it's a file and selected
+                if (node.type === 'file' && selectedPaths.has(node.path)) {
+                    count++;
+                }
+
+                // Recursively check children
+                if (node.children) {
+                    for (const child of node.children) {
+                        countFiles(child);
+                    }
+                }
+            }
+
+            countFiles(root);
+            return count;
         }
 
         // Find a node by its path

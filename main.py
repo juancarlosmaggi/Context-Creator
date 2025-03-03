@@ -167,9 +167,36 @@ async def build_and_save_index(base_path: Path):
     finally:
         index_status.is_building = False
 
+def is_index_valid(max_age_hours=24) -> bool:
+    """Check if the index file exists and is recent enough."""
+    index_path = Path(INDEX_FILE)
+    if not index_path.exists():
+        return False
+        
+    # Check if the index is recent enough
+    try:
+        mtime = datetime.fromtimestamp(index_path.stat().st_mtime)
+        age = datetime.now() - mtime
+        if age.total_seconds() > max_age_hours * 3600:
+            return False
+            
+        # Verify the index file is valid JSON
+        with open(index_path, 'r') as f:
+            json.load(f)
+        return True
+    except (json.JSONDecodeError, OSError):
+        return False
+
 async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks):
     """Get the cached index or trigger a rebuild if necessary."""
     index_status = IndexStatus()
+    
+    # If index is already valid, don't rebuild
+    if index_status.is_valid or is_index_valid():
+        index_status.is_valid = True
+        return None
+        
+    # If not already building, start the build process
     if not index_status.is_building:
         index_status.is_building = True
         background_tasks.add_task(build_and_save_index, base_path)
@@ -179,8 +206,14 @@ async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks)
 async def index(request: Request, background_tasks: BackgroundTasks):
     """Serve the index page, triggering index build if necessary."""
     base_path = Path.cwd()
-    if IndexStatus().is_valid and Path(INDEX_FILE).exists():
+    index_status = IndexStatus()
+    
+    # If index is valid or can be validated, serve the main page
+    if index_status.is_valid or is_index_valid():
+        index_status.is_valid = True
         return templates.TemplateResponse("index.html", {"request": request})
+    
+    # Otherwise, trigger a build and show the loading page
     await get_or_build_index(base_path, background_tasks)
     return templates.TemplateResponse("loading.html", {"request": request})
 

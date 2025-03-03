@@ -1,77 +1,178 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>File Processor</title>
-    <style>
-        .tree { list-style: none; padding-left: 20px; }
-        .toggle { cursor: pointer; }
-        .collapsed::before { content: "+ "; }
-        .expanded::before { content: "- "; }
-        .hidden { display: none; }
-    </style>
-</head>
-<body>
-    <h1>Select Files/Directories</h1>
-    <form action="/process/" method="post">
-        <ul class="tree">
-            {% macro render_node(node) %}
-                <li>
-                    {% if node.type == 'directory' %}
-                        <span class="toggle collapsed" onclick="toggleFolder(this)"></span>
-                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" 
-                               value="{{ node.path }}" onchange="updateChildren(this)">
-                        <label for="{{ node.path }}">{{ node.name }}</label>
-                        <ul class="hidden">
-                            {% for child in node.children %}
-                                {{ render_node(child) }}
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" 
-                               value="{{ node.path }}" onchange="updateParents(this)">
-                        <label for="{{ node.path }}">{{ node.name }}</label>
-                    {% endif %}
-                </li>
-            {% endmacro %}
-            {% for child in structure.children %}
-                {{ render_node(child) }}
-            {% endfor %}
-        </ul>
-        <button type="submit">Process Selected</button>
-    </form>
+<html lang="en">
 
-    <script>
-        function toggleFolder(element) {
-            const ul = element.nextElementSibling.nextElementSibling.nextElementSibling;
-            ul.classList.toggle('hidden');
-            element.classList.toggle('collapsed');
-            element.classList.toggle('expanded');
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Processor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        [type="checkbox"]:checked,
+        [type="checkbox"]:indeterminate {
+            background-image: none;
         }
 
-        function updateChildren(checkbox) {
-            const children = checkbox.parentElement.querySelectorAll('input[type="checkbox"]');
-            children.forEach(child => {
-                if(child !== checkbox) {
-                    child.checked = checkbox.checked;
-                    child.indeterminate = false;
-                }
-            });
+        /* Remove default focus outline to avoid confusion with custom visuals */
+        input[type="checkbox"]:focus+label>span {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
+        <form action="/process/" method="post">
+            <ul class="space-y-2">
+                {% macro render_node(node) %}
+                <li class="group">
+                    <div class="flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors">
+                        {% if node.type == 'directory' %}
+                        <button type="button" class="toggle mr-2 text-gray-400 hover:text-gray-600 transition-transform"
+                            onclick="toggleFolder(this)">
+                            <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <span class="mr-2 text-gray-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                        </span>
+                        {% else %}
+                        <span class="w-5 h-5 mr-4"></span>
+                        <span class="mr-2 text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </span>
+                        {% endif %}
+
+                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" value="{{ node.path }}"
+                            class="hidden" onchange="handleCheckboxChange(this, '{{ node.type }}')">
+                        <label for="{{ node.path }}" class="flex-1 cursor-pointer flex items-center">
+                            <span
+                                class="w-6 h-6 mr-2 border rounded-md bg-white flex items-center justify-center transition-colors">
+                                <svg class="w-4 h-4 hidden" fill="none" stroke="white" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="w-4 h-1 bg-blue-700 hidden"></span>
+                            </span>
+                            <span class="text-gray-700">{{ node.name }}</span>
+                        </label>
+                    </div>
+
+                    {% if node.type == 'directory' %}
+                    <ul class="hidden pl-6 ml-4 border-l-2 border-gray-200 space-y-2">
+                        {% for child in node.children %}
+                        {{ render_node(child) }}
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </li>
+                {% endmacro %}
+                {% for child in structure.children %}
+                {{ render_node(child) }}
+                {% endfor %}
+            </ul>
+            <button type="submit"
+                class="mt-6 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                Process Selected Files
+            </button>
+        </form>
+    </div>
+
+    <script>
+        function toggleFolder(button) {
+            const listItem = button.closest('li');
+            const childList = listItem.querySelector('ul');
+            const chevron = button.querySelector('svg');
+            childList.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-90');
+            if (!childList.classList.contains('hidden')) {
+                childList.style.maxHeight = '0';
+                childList.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    childList.style.maxHeight = childList.scrollHeight + 'px';
+                });
+            } else {
+                childList.style.maxHeight = '0';
+                setTimeout(() => childList.classList.add('hidden'), 300);
+            }
+        }
+
+        function handleCheckboxChange(checkbox, type) {
+            console.log(`Checkbox changed: ${checkbox.id}, type: ${type}`);
+            updateVisual(checkbox);
+            if (type === 'directory') {
+                updateChildren(checkbox, checkbox.checked);
+            }
             updateParents(checkbox);
         }
 
-        function updateParents(checkbox) {
-            let parent = checkbox.closest('ul').parentElement;
-            while(parent) {
-                const parentCheckbox = parent.querySelector('input[type="checkbox"]');
-                if(parentCheckbox) {
-                    const children = parent.querySelectorAll('input[type="checkbox"]:not(:first-child)');
-                    const checked = Array.from(children).filter(c => c.checked);
-                    parentCheckbox.checked = checked.length === children.length;
-                    parentCheckbox.indeterminate = checked.length > 0 && checked.length < children.length;
+        function updateVisual(checkbox) {
+            const labelSpan = checkbox.nextElementSibling.querySelector('span:first-child');
+            const svg = labelSpan.querySelector('svg');
+            const dash = labelSpan.querySelector('span');
+
+            // Remove all conflicting background and border classes
+            labelSpan.classList.remove('bg-white', 'bg-blue-500', 'border-blue-500', 'bg-blue-200');
+            svg.classList.add('hidden');
+            dash.classList.add('hidden');
+
+            if (checkbox.checked) {
+                // Apply checked styles
+                labelSpan.classList.add('bg-blue-500', 'border-blue-500');
+                svg.classList.remove('hidden');
+                console.log(`Checked: ${checkbox.id}, Span classes: ${labelSpan.className}, SVG hidden: ${svg.classList.contains('hidden')}`);
+            } else if (checkbox.indeterminate) {
+                // Apply indeterminate styles
+                labelSpan.classList.add('bg-blue-200');
+                dash.classList.remove('hidden');
+                console.log(`Indeterminate: ${checkbox.id}, Span classes: ${labelSpan.className}, Dash hidden: ${dash.classList.contains('hidden')}`);
+            } else {
+                // Apply unchecked styles
+                labelSpan.classList.add('bg-white');
+                console.log(`Unchecked: ${checkbox.id}, Span classes: ${labelSpan.className}`);
+            }
+        }
+
+        function updateChildren(checkbox, checked) {
+            const listItem = checkbox.closest('li');
+            const childCheckboxes = listItem.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
+            childCheckboxes.forEach(child => {
+                if (child.dataset.updating) return;
+                child.dataset.updating = 'true';
+                child.checked = checked;
+                updateVisual(child);
+                const childLi = child.closest('li');
+                if (childLi.querySelector('ul')) {
+                    updateChildren(child, checked);
                 }
-                parent = parent.parentElement.closest('li');
+                delete child.dataset.updating;
+            });
+        }
+
+        function updateParents(checkbox) {
+            let parentLi = checkbox.closest('ul').parentElement.closest('li');
+            while (parentLi) {
+                const parentCheckbox = parentLi.querySelector(':scope > div > input[type="checkbox"]');
+                if (parentCheckbox) {
+                    const siblingCheckboxes = parentLi.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
+                    const checkedCount = Array.from(siblingCheckboxes).filter(c => c.checked).length;
+                    parentCheckbox.checked = checkedCount === siblingCheckboxes.length;
+                    parentCheckbox.indeterminate = checkedCount > 0 && checkedCount < siblingCheckboxes.length;
+                    updateVisual(parentCheckbox);
+                }
+                parentLi = parentLi.parentElement.closest('li');
             }
         }
     </script>
 </body>
+
 </html>

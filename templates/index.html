@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Processor</title>
+    <style>
+        .tree { list-style: none; padding-left: 20px; }
+        .toggle { cursor: pointer; }
+        .collapsed::before { content: "+ "; }
+        .expanded::before { content: "- "; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Select Files/Directories</h1>
+    <form action="/process/" method="post">
+        <ul class="tree">
+            {% macro render_node(node) %}
+                <li>
+                    {% if node.type == 'directory' %}
+                        <span class="toggle collapsed" onclick="toggleFolder(this)"></span>
+                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" 
+                               value="{{ node.path }}" onchange="updateChildren(this)">
+                        <label for="{{ node.path }}">{{ node.name }}</label>
+                        <ul class="hidden">
+                            {% for child in node.children %}
+                                {{ render_node(child) }}
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" 
+                               value="{{ node.path }}" onchange="updateParents(this)">
+                        <label for="{{ node.path }}">{{ node.name }}</label>
+                    {% endif %}
+                </li>
+            {% endmacro %}
+            {% for child in structure.children %}
+                {{ render_node(child) }}
+            {% endfor %}
+        </ul>
+        <button type="submit">Process Selected</button>
+    </form>
+
+    <script>
+        function toggleFolder(element) {
+            const ul = element.nextElementSibling.nextElementSibling.nextElementSibling;
+            ul.classList.toggle('hidden');
+            element.classList.toggle('collapsed');
+            element.classList.toggle('expanded');
+        }
+
+        function updateChildren(checkbox) {
+            const children = checkbox.parentElement.querySelectorAll('input[type="checkbox"]');
+            children.forEach(child => {
+                if(child !== checkbox) {
+                    child.checked = checkbox.checked;
+                    child.indeterminate = false;
+                }
+            });
+            updateParents(checkbox);
+        }
+
+        function updateParents(checkbox) {
+            let parent = checkbox.closest('ul').parentElement;
+            while(parent) {
+                const parentCheckbox = parent.querySelector('input[type="checkbox"]');
+                if(parentCheckbox) {
+                    const children = parent.querySelectorAll('input[type="checkbox"]:not(:first-child)');
+                    const checked = Array.from(children).filter(c => c.checked);
+                    parentCheckbox.checked = checked.length === children.length;
+                    parentCheckbox.indeterminate = checked.length > 0 && checked.length < children.length;
+                }
+                parent = parent.parentElement.closest('li');
+            }
+        }
+    </script>
+</body>
+</html>

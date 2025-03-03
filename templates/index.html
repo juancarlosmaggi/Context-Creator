@@ -131,6 +131,8 @@
             })
             .then(data => {
                 projectStructure = data;
+                // Process the structure to remove empty directories
+                projectStructure = removeEmptyDirectories(projectStructure);
                 filteredStructure = projectStructure; // Initially, filtered = full structure
                 renderStructure(filteredStructure.children, document.getElementById('project-structure'));
             })
@@ -138,6 +140,40 @@
                 console.error('Error:', error);
                 document.getElementById('project-structure').innerHTML = '<li class="text-red-500">Error loading project structure</li>';
             });
+
+        // Function to remove empty directories recursively
+        function removeEmptyDirectories(node) {
+            // For non-directories, return as is
+            if (node.type !== 'directory') return node;
+
+            // Skip the root folder even if empty
+            if (!node.parent) {
+                if (node.children && node.children.length > 0) {
+                    // Process children recursively
+                    node.children = node.children
+                        .map(removeEmptyDirectories)
+                        .filter(child => child !== null);
+                }
+                return node;
+            }
+
+            // Process children recursively
+            if (node.children && node.children.length > 0) {
+                node.children = node.children
+                    .map(removeEmptyDirectories)
+                    .filter(child => child !== null);
+
+                // If after processing, this directory has no children, return null
+                if (node.children.length === 0) {
+                    return null;
+                }
+            } else {
+                // If directory has no children initially, return null
+                return null;
+            }
+
+            return node;
+        }
 
         // Event delegation for checkbox changes
         document.getElementById('project-structure').addEventListener('change', (event) => {
@@ -243,6 +279,11 @@
             });
 
             nodes.forEach(node => {
+                // Skip rendering empty directories
+                if (node.type === 'directory' && (!node.children || node.children.length === 0)) {
+                    return;
+                }
+
                 const li = document.createElement('li');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';

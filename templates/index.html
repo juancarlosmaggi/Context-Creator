@@ -4,365 +4,205 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Processor</title>
+    <title>Project Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        [type="checkbox"]:checked,
-        [type="checkbox"]:indeterminate {
-            background-image: none;
-        }
-
-        /* Remove default focus outline to avoid confusion with custom visuals */
-        input[type="checkbox"]:focus+label>span {
-            outline: none;
+        .toggle svg.rotate-90 {
+            transform: rotate(90deg);
         }
     </style>
-
-    <script>
-        // Debounce function to limit how often a function can be called
-        function debounce(func, wait) {
-            let timeout;
-            return function(...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), wait);
-            };
-        }
-        
-        // Store references to DOM elements to avoid repeated queries
-        const elementCache = new Map();
-        
-        function getElement(selector, parent = document) {
-            const key = parent === document ? selector : `${parent.id || 'unknown'}-${selector}`;
-            if (!elementCache.has(key)) {
-                elementCache.set(key, parent.querySelector(selector));
-            }
-            return elementCache.get(key);
-        }
-        
-        function getElements(selector, parent = document) {
-            const key = parent === document ? `all-${selector}` : `all-${parent.id || 'unknown'}-${selector}`;
-            if (!elementCache.has(key)) {
-                elementCache.set(key, parent.querySelectorAll(selector));
-            }
-            return elementCache.get(key);
-        }
-        
-        // Optimize folder toggling with animation
-        function toggleFolder(button) {
-            const listItem = button.closest('li');
-            const childList = getElement('ul', listItem);
-            const chevron = getElement('svg', button);
-            
-            if (!childList) return;
-            
-            const isHidden = childList.classList.contains('hidden');
-            chevron.classList.toggle('rotate-90');
-            
-            if (isHidden) {
-                // Show folder
-                childList.style.maxHeight = '0';
-                childList.classList.remove('hidden');
-                requestAnimationFrame(() => {
-                    childList.style.maxHeight = childList.scrollHeight + 'px';
-                });
-            } else {
-                // Hide folder
-                childList.style.maxHeight = '0';
-                setTimeout(() => childList.classList.add('hidden'), 300);
-            }
-        }
-
-        // Optimize checkbox handling with batch updates
-        const pendingUpdates = new Set();
-        let updateVisualScheduled = false;
-        
-        function scheduleVisualUpdate() {
-            if (!updateVisualScheduled) {
-                updateVisualScheduled = true;
-                requestAnimationFrame(() => {
-                    pendingUpdates.forEach(checkbox => {
-                        updateVisualImmediate(checkbox);
-                    });
-                    pendingUpdates.clear();
-                    updateVisualScheduled = false;
-                });
-            }
-        }
-        
-        function handleCheckboxChange(checkbox, type) {
-            // Remove console.log for production
-            pendingUpdates.add(checkbox);
-            
-            if (type === 'directory') {
-                updateChildren(checkbox, checkbox.checked);
-            }
-            
-            updateParents(checkbox);
-            scheduleVisualUpdate();
-        }
-
-        function updateVisual(checkbox) {
-            pendingUpdates.add(checkbox);
-            scheduleVisualUpdate();
-        }
-        
-        function updateVisualImmediate(checkbox) {
-            const labelSpan = checkbox.nextElementSibling.querySelector('span:first-child');
-            const svg = labelSpan.querySelector('svg');
-            const dash = labelSpan.querySelector('span');
-
-            // Remove all conflicting background and border classes
-            labelSpan.classList.remove('bg-white', 'bg-blue-500', 'border-blue-500', 'bg-blue-200');
-            svg.classList.add('hidden');
-            dash.classList.add('hidden');
-
-            if (checkbox.checked) {
-                // Apply checked styles
-                labelSpan.classList.add('bg-blue-500', 'border-blue-500');
-                svg.classList.remove('hidden');
-            } else if (checkbox.indeterminate) {
-                // Apply indeterminate styles
-                labelSpan.classList.add('bg-blue-200');
-                dash.classList.remove('hidden');
-            } else {
-                // Apply unchecked styles
-                labelSpan.classList.add('bg-white');
-            }
-        }
-
-        // Use a more efficient approach for updating children
-        function updateChildren(checkbox, checked) {
-            const listItem = checkbox.closest('li');
-            const childCheckboxes = getElements(':scope > ul > li > div > input[type="checkbox"]', listItem);
-            
-            // Batch process children
-            for (let i = 0; i < childCheckboxes.length; i++) {
-                const child = childCheckboxes[i];
-                if (child.dataset.updating) continue;
-                
-                child.dataset.updating = 'true';
-                child.checked = checked;
-                pendingUpdates.add(child);
-                
-                const childLi = child.closest('li');
-                if (childLi.querySelector('ul')) {
-                    updateChildren(child, checked);
-                }
-                delete child.dataset.updating;
-            }
-            
-            scheduleVisualUpdate();
-        }
-
-        // Optimize parent updates
-        const debouncedUpdateParents = debounce((checkbox) => {
-            let parentLi = checkbox.closest('ul')?.parentElement.closest('li');
-            const parentsToUpdate = [];
-            
-            while (parentLi) {
-                const parentCheckbox = parentLi.querySelector(':scope > div > input[type="checkbox"]');
-                if (parentCheckbox) {
-                    parentsToUpdate.push(parentCheckbox);
-                }
-                parentLi = parentLi.parentElement.closest('li');
-            }
-            
-            // Process all parents in a batch
-            for (const parentCheckbox of parentsToUpdate) {
-                const parentLi = parentCheckbox.closest('li');
-                const siblingCheckboxes = parentLi.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
-                const total = siblingCheckboxes.length;
-                let checkedCount = 0;
-                
-                for (let i = 0; i < total; i++) {
-                    if (siblingCheckboxes[i].checked) {
-                        checkedCount++;
-                    }
-                }
-                
-                parentCheckbox.checked = checkedCount === total;
-                parentCheckbox.indeterminate = checkedCount > 0 && checkedCount < total;
-                pendingUpdates.add(parentCheckbox);
-            }
-            
-            scheduleVisualUpdate();
-        }, 50);
-        
-        function updateParents(checkbox) {
-            debouncedUpdateParents(checkbox);
-        }
-        
-        // Initialize the tree when DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            // Pre-expand the first level of folders for better UX
-            const topLevelFolders = document.querySelectorAll('ul > li > div > button.toggle');
-            for (let i = 0; i < Math.min(topLevelFolders.length, 3); i++) {
-                toggleFolder(topLevelFolders[i]);
-            }
-        });
-    </script>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
-        <div class="mb-4 flex items-center">
-            <input type="text" id="search-input" placeholder="Search files and folders..." 
-                   class="px-4 py-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <form action="/process/" method="post">
-            <ul class="space-y-2">
-                {% macro render_node(node) %}
-                <li class="group">
-                    <div class="flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors">
-                        {% if node.type == 'directory' %}
-                        <button type="button" class="toggle mr-2 text-gray-400 hover:text-gray-600 transition-transform"
-                            onclick="toggleFolder(this)">
-                            <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-                        <span class="mr-2 text-gray-500">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
-                        </span>
-                        {% else %}
-                        <span class="w-5 h-5 mr-4"></span>
-                        <span class="mr-2 text-gray-400">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </span>
-                        {% endif %}
-
-                        <input type="checkbox" id="{{ node.path }}" name="selected_paths" value="{{ node.path }}"
-                            class="hidden" onchange="handleCheckboxChange(this, '{{ node.type }}')">
-                        <label for="{{ node.path }}" class="flex-1 cursor-pointer flex items-center">
-                            <span
-                                class="w-6 h-6 mr-2 border rounded-md bg-white flex items-center justify-center transition-colors">
-                                <svg class="w-4 h-4 hidden" fill="none" stroke="white" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
-                                        d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span class="w-4 h-1 bg-blue-700 hidden"></span>
-                            </span>
-                            <span class="text-gray-700">{{ node.name }}</span>
-                        </label>
-                    </div>
-
-                    {% if node.type == 'directory' %}
-                    <ul class="hidden pl-6 ml-4 border-l-2 border-gray-200 space-y-2">
-                        {% for child in node.children %}
-                        {{ render_node(child) }}
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </li>
-                {% endmacro %}
-                {% for child in structure.children %}
-                {{ render_node(child) }}
-                {% endfor %}
-            </ul>
-            <div class="flex justify-between items-center mt-6">
-                <div>
-                    <button type="button" id="expand-all"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors mr-2">
-                        Expand All
-                    </button>
-                    <button type="button" id="collapse-all"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
-                        Collapse All
-                    </button>
-                </div>
-                <button type="submit"
-                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    Process Selected Files
-                </button>
-            </div>
+        <form id="process-form" action="/process/" method="post">
+            <ul id="project-structure" class="space-y-2"></ul>
+            <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Process
+                Selected</button>
         </form>
     </div>
     <script>
-        // Add search functionality
-        document.getElementById('search-input').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const allItems = document.querySelectorAll('li');
-            
-            if (!searchTerm) {
-                // If search is empty, show everything
-                allItems.forEach(item => {
-                    item.style.display = '';
-                });
-                return;
+        let projectStructure;
+        const selectedPaths = new Set();
+
+        // Fetch project structure from the backend
+        fetch('/api/project-structure')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch structure');
+                return response.json();
+            })
+            .then(data => {
+                projectStructure = data;
+                renderStructure(data.children, document.getElementById('project-structure'));
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('project-structure').innerHTML = '<li class="text-red-500">Error loading project structure</li>';
+            });
+
+        // Event delegation for checkbox changes
+        document.getElementById('project-structure').addEventListener('change', (event) => {
+            if (event.target.type === 'checkbox') {
+                handleCheckboxChange(event.target);
             }
-            
-            // First hide everything
-            allItems.forEach(item => {
-                item.style.display = 'none';
-            });
-            
-            // Then show matching items and their parents
-            allItems.forEach(item => {
-                const nameElement = item.querySelector('label > span:last-child');
-                if (nameElement && nameElement.textContent.toLowerCase().includes(searchTerm)) {
-                    // Show this item
-                    item.style.display = '';
-                    
-                    // Show all parent items
-                    let parent = item.parentElement.closest('li');
-                    while (parent) {
-                        parent.style.display = '';
-                        // Ensure parent folders are expanded
-                        const parentList = parent.querySelector('ul');
-                        if (parentList && parentList.classList.contains('hidden')) {
-                            const toggleButton = parent.querySelector('button.toggle');
-                            if (toggleButton) toggleFolder(toggleButton);
+        });
+
+        // Render the project structure
+        function renderStructure(nodes, container) {
+            nodes.forEach(node => {
+                const li = document.createElement('li');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'selected_paths';
+                checkbox.value = node.path;
+                checkbox.className = 'mr-2';
+                checkbox.checked = selectedPaths.has(node.path);
+                if (node.type === 'directory') {
+                    const allSelected = isAllDescendantsSelected(node);
+                    const someSelected = isSomeDescendantsSelected(node);
+                    checkbox.indeterminate = someSelected && !allSelected;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors';
+                div.appendChild(checkbox);
+
+                if (node.type === 'directory') {
+                    const toggleButton = document.createElement('button');
+                    toggleButton.type = 'button';
+                    toggleButton.className = 'toggle mr-2 text-gray-400 hover:text-gray-600';
+                    toggleButton.innerHTML = `
+                        <svg class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    `;
+                    div.appendChild(toggleButton);
+                    div.innerHTML += `
+                        <span class="mr-2 text-gray-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                        </span>
+                    `;
+                } else {
+                    div.innerHTML += `
+                        <span class="w-7 mr-2"></span>
+                        <span class="mr-2 text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </span>
+                    `;
+                }
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'text-gray-700';
+                nameSpan.textContent = node.name;
+                div.appendChild(nameSpan);
+                li.appendChild(div);
+
+                if (node.type === 'directory') {
+                    const childUl = document.createElement('ul');
+                    childUl.className = 'hidden pl-6 space-y-2';
+                    li.appendChild(childUl);
+                    const toggleButton = div.querySelector('.toggle');
+                    toggleButton.addEventListener('click', () => {
+                        if (childUl.classList.contains('hidden')) {
+                            if (!childUl.hasChildNodes()) {
+                                renderStructure(node.children, childUl);
+                            }
+                            childUl.classList.remove('hidden');
+                            toggleButton.querySelector('svg').classList.add('rotate-90');
+                        } else {
+                            childUl.classList.add('hidden');
+                            toggleButton.querySelector('svg').classList.remove('rotate-90');
                         }
-                        parent = parent.parentElement.closest('li');
-                    }
+                    });
+                }
+                container.appendChild(li);
+            });
+        }
+
+        // Handle checkbox changes
+        function handleCheckboxChange(checkbox) {
+            const path = checkbox.value;
+            const node = findNodeByPath(projectStructure, path);
+            if (checkbox.checked) {
+                selectedPaths.add(path);
+                if (node.type === 'directory') {
+                    selectAllDescendants(node);
+                }
+            } else {
+                selectedPaths.delete(path);
+                if (node.type === 'directory') {
+                    deselectAllDescendants(node);
+                }
+            }
+            updateCheckboxStates();
+        }
+
+        // Find a node by its path
+        function findNodeByPath(root, path) {
+            if (root.path === path) return root;
+            for (const child of root.children || []) {
+                const found = findNodeByPath(child, path);
+                if (found) return found;
+            }
+            return null;
+        }
+
+        // Select all descendants of a directory
+        function selectAllDescendants(node) {
+            for (const child of node.children || []) {
+                selectedPaths.add(child.path);
+                if (child.type === 'directory') {
+                    selectAllDescendants(child);
+                }
+            }
+        }
+
+        // Deselect all descendants of a directory
+        function deselectAllDescendants(node) {
+            for (const child of node.children || []) {
+                selectedPaths.delete(child.path);
+                if (child.type === 'directory') {
+                    deselectAllDescendants(child);
+                }
+            }
+        }
+
+        // Update checkbox states for all rendered checkboxes
+        function updateCheckboxStates() {
+            document.querySelectorAll('input[type="checkbox"][name="selected_paths"]').forEach(cb => {
+                const path = cb.value;
+                const node = findNodeByPath(projectStructure, path);
+                if (selectedPaths.has(path)) {
+                    cb.checked = true;
+                    cb.indeterminate = false;
+                } else if (node.type === 'directory' && isSomeDescendantsSelected(node)) {
+                    cb.checked = false;
+                    cb.indeterminate = true;
+                } else {
+                    cb.checked = false;
+                    cb.indeterminate = false;
                 }
             });
-        });
-        
-        // Add expand/collapse all functionality
-        document.getElementById('expand-all').addEventListener('click', function() {
-            const allFolders = document.querySelectorAll('button.toggle');
-            allFolders.forEach(button => {
-                const listItem = button.closest('li');
-                const childList = listItem.querySelector('ul');
-                if (childList && childList.classList.contains('hidden')) {
-                    toggleFolder(button);
-                }
-            });
-        });
-        
-        document.getElementById('collapse-all').addEventListener('click', function() {
-            const allFolders = document.querySelectorAll('button.toggle');
-            allFolders.forEach(button => {
-                const listItem = button.closest('li');
-                const childList = listItem.querySelector('ul');
-                if (childList && !childList.classList.contains('hidden')) {
-                    toggleFolder(button);
-                }
-            });
-        });
-    </script>
-    
-    <script>
-        // Add periodic index validation
-        setInterval(() => {
-            fetch('/api/index-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.is_valid && !data.is_building) {
-                        window.location.reload();
-                    }
-                });
-        }, 30000); // Check every 30 seconds
+        }
+
+        // Check if all descendants are selected
+        function isAllDescendantsSelected(node) {
+            return node.children.every(child =>
+                selectedPaths.has(child.path) && (child.type !== 'directory' || isAllDescendantsSelected(child))
+            );
+        }
+
+        // Check if some descendants are selected
+        function isSomeDescendantsSelected(node) {
+            return node.children.some(child =>
+                selectedPaths.has(child.path) || (child.type === 'directory' && isSomeDescendantsSelected(child))
+            );
+        }
     </script>
 </body>
 

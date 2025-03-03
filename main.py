@@ -10,6 +10,7 @@ from datetime import datetime
 import pathspec
 import functools
 import concurrent.futures
+import tempfile
 
 app = FastAPI()
 current_dir = Path(__file__).parent
@@ -297,16 +298,31 @@ async def get_index_status():
 
 @app.post("/process/", response_class=FileResponse)
 async def process_files_route(selected_paths: list = Form(...)):
-    """Process selected paths and return the output file."""
+    """Process selected paths and return the output as a temporary file."""
     base_path = Path.cwd()
     processed_content = process_files(selected_paths, base_path)
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     output_filename = f"llm_input_{timestamp}.txt"
-    output_path = base_path / "outputs" / output_filename
-    output_path.parent.mkdir(exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(processed_content)
-    return FileResponse(output_path, filename=output_filename)
+    
+    # Create a named temporary file that will persist until the response is complete
+    temp_file = tempfile.NamedTemporaryFile(mode="w+", suffix=".txt", delete=False)
+    try:
+        # Write content to the temporary file
+        temp_file.write(processed_content)
+        temp_file.flush()
+        temp_file.close()
+        
+        # Return the temporary file as a response with the desired filename
+        return FileResponse(
+            path=temp_file.name, 
+            filename=output_filename,
+            media_type="text/plain",
+            background=BackgroundTasks().add_task(lambda: os.unlink(temp_file.name))
+        )
+    except Exception as e:
+        # Clean up the file if there's an error
+        os.unlink(temp_file.name)
+        raise e
 
 @app.get("/api/project-structure")
 async def get_project_structure_json():

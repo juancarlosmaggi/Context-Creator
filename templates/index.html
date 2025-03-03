@@ -57,12 +57,44 @@
             cursor: not-allowed;
             transform: none;
         }
+
+        /* Hide files not matching filter */
+        .file-item.filtered {
+            display: none;
+        }
+
+        /* Highlight matching text */
+        .highlight {
+            background-color: #FFFF00;
+            font-weight: bold;
+        }
+
+        /* Hide folders without matching descendants */
+        .dir-item.filtered {
+            display: none;
+        }
     </style>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
+
+        <!-- Add search/filter input -->
+        <div class="mb-4">
+            <div class="relative">
+                <input type="text" id="file-filter" placeholder="Filter files..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="clear-filter" class="absolute right-2 top-2 text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
         <div class="flex space-x-4 mb-4">
             <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
             <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
@@ -88,6 +120,7 @@
     <script>
         let projectStructure;
         const selectedPaths = new Set();
+        let filterText = '';
 
         // Fetch project structure
         fetch('/api/project-structure')
@@ -110,6 +143,143 @@
                 handleCheckboxChange(event.target);
             }
         });
+
+        // File filter functionality
+        const fileFilter = document.getElementById('file-filter');
+        const clearFilterBtn = document.getElementById('clear-filter');
+
+        fileFilter.addEventListener('input', () => {
+            filterText = fileFilter.value.trim().toLowerCase();
+            applyFilter(filterText);
+            updateCheckboxStates();
+        });
+
+        clearFilterBtn.addEventListener('click', () => {
+            fileFilter.value = '';
+            filterText = '';
+            applyFilter('');
+            updateCheckboxStates();
+        });
+
+        // Apply filter to file structure
+        function applyFilter(filterText) {
+            if (!projectStructure) return;
+
+            // First pass: Mark all files that match or don't match the filter
+            const fileItems = document.querySelectorAll('.file-item');
+            let matchCount = 0;
+
+            // Reset filter info
+            const existingInfo = document.getElementById('filter-info');
+            if (existingInfo) existingInfo.remove();
+
+            // Clear filtered state from all folders first
+            const dirItems = document.querySelectorAll('.dir-item');
+            dirItems.forEach(dirItem => {
+                dirItem.classList.remove('filtered');
+            });
+
+            // Apply filter to files
+            fileItems.forEach(fileItem => {
+                const nameElement = fileItem.querySelector('.file-name');
+                const originalName = nameElement.getAttribute('data-name') || nameElement.textContent;
+
+                if (filterText === '') {
+                    // Reset when filter is empty
+                    fileItem.classList.remove('filtered');
+                    nameElement.textContent = originalName;
+                    matchCount++;
+                } else {
+                    // Apply filter
+                    if (originalName.toLowerCase().includes(filterText)) {
+                        fileItem.classList.remove('filtered');
+
+                        // Highlight matching part
+                        const lowerName = originalName.toLowerCase();
+                        const index = lowerName.indexOf(filterText);
+                        if (index >= 0) {
+                            const before = originalName.substring(0, index);
+                            const match = originalName.substring(index, index + filterText.length);
+                            const after = originalName.substring(index + filterText.length);
+                            nameElement.innerHTML = `${before}<span class="highlight">${match}</span>${after}`;
+                        } else {
+                            nameElement.textContent = originalName;
+                        }
+
+                        matchCount++;
+                    } else {
+                        fileItem.classList.add('filtered');
+                    }
+                }
+            });
+
+            // Only process folder visibility if we're filtering
+            if (filterText) {
+                // Second pass: Hide folders that don't have any visible descendants
+                const allFolders = document.querySelectorAll('.dir-item');
+                allFolders.forEach(folderItem => {
+                    const hasVisibleFiles = hasFolderVisibleFiles(folderItem);
+                    if (!hasVisibleFiles) {
+                        folderItem.classList.add('filtered');
+                    }
+                });
+
+                // Make sure paths to visible files are expanded
+                fileItems.forEach(fileItem => {
+                    if (!fileItem.classList.contains('filtered')) {
+                        // Make parent folders visible and expanded
+                        let parent = fileItem.parentElement;
+                        while (parent && parent !== document) {
+                            if (parent.tagName === 'UL' && parent.classList.contains('hidden')) {
+                                parent.classList.remove('hidden');
+
+                                const parentLi = parent.closest('li');
+                                if (parentLi) {
+                                    // Make sure this folder isn't filtered
+                                    const folderDiv = parentLi.querySelector('.dir-item');
+                                    if (folderDiv) folderDiv.classList.remove('filtered');
+
+                                    // Rotate toggle icon
+                                    const toggle = parentLi.querySelector('.toggle svg');
+                                    if (toggle) toggle.classList.add('rotate-90');
+                                }
+                            }
+                            parent = parent.parentElement;
+                        }
+                    }
+                });
+            }
+
+            // Update UI to show filter results
+            if (filterText && matchCount === 0) {
+                const info = document.createElement('div');
+                info.id = 'filter-info';
+                info.className = 'text-gray-500 mt-4 text-center';
+                info.textContent = 'No files match the filter';
+                document.getElementById('project-structure').appendChild(info);
+            }
+        }
+
+        // Check if a folder has any visible (not filtered) files
+        function hasFolderVisibleFiles(folderItem) {
+            // Check direct children first
+            const childFiles = folderItem.closest('li').querySelectorAll(':scope > ul > li > .file-item');
+            for (const childFile of childFiles) {
+                if (!childFile.classList.contains('filtered')) {
+                    return true;
+                }
+            }
+
+            // Check nested folders
+            const childFolders = folderItem.closest('li').querySelectorAll(':scope > ul > li > .dir-item');
+            for (const childFolder of childFolders) {
+                if (!childFolder.classList.contains('filtered') && hasFolderVisibleFiles(childFolder)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         // Render the project structure
         function renderStructure(nodes, container) {
@@ -138,7 +308,8 @@
                 }
 
                 const div = document.createElement('div');
-                div.className = 'flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors';
+                // Add appropriate class based on node type
+                div.className = `flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
                 div.appendChild(checkbox);
 
                 if (node.type === 'directory') {
@@ -170,8 +341,9 @@
                 }
 
                 const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-gray-700';
+                nameSpan.className = `text-gray-700 ${node.type === 'file' ? 'file-name' : ''}`;
                 nameSpan.textContent = node.name;
+                nameSpan.setAttribute('data-name', node.name);
                 div.appendChild(nameSpan);
                 li.appendChild(div);
 
@@ -195,14 +367,23 @@
                 }
                 container.appendChild(li);
             });
+
+            // Apply filters if we have any active
+            if (filterText) {
+                applyFilter(filterText);
+            }
         }
 
         // Expand all folders
         document.getElementById('expand-all').addEventListener('click', () => {
             document.querySelectorAll('.toggle').forEach(button => {
-                const childUl = button.closest('li').querySelector('ul');
-                if (childUl && childUl.classList.contains('hidden')) {
-                    button.click();
+                // Only expand if parent folder isn't filtered
+                const folderItem = button.closest('.dir-item');
+                if (folderItem && !folderItem.classList.contains('filtered')) {
+                    const childUl = button.closest('li').querySelector('ul');
+                    if (childUl && childUl.classList.contains('hidden')) {
+                        button.click();
+                    }
                 }
             });
         });
@@ -224,7 +405,7 @@
             if (checkbox.checked) {
                 selectedPaths.add(path);
                 if (node.type === 'directory') {
-                    selectAllDescendants(node);
+                    selectFilteredDescendants(node);
                 }
             } else {
                 selectedPaths.delete(path);
@@ -234,6 +415,27 @@
             }
             updateCheckboxStates();
             updateSelectionCounter();
+        }
+
+        // Select all visible/filtered descendants of a directory
+        function selectFilteredDescendants(node) {
+            for (const child of node.children || []) {
+                // For files, check if it's visible in the UI (not filtered out)
+                if (child.type === 'file') {
+                    // Only select the file if it's visible (not filtered out)
+                    const fileItem = document.querySelector(`.file-item input[value="${child.path}"]`)?.closest('.file-item');
+                    if (fileItem && !fileItem.classList.contains('filtered')) {
+                        selectedPaths.add(child.path);
+                    }
+                } else if (child.type === 'directory') {
+                    // For directories, check if it's visible (not filtered)
+                    const dirItem = document.querySelector(`.dir-item input[value="${child.path}"]`)?.closest('.dir-item');
+                    if (!dirItem || !dirItem.classList.contains('filtered')) {
+                        // If directory is visible, recursively process its children
+                        selectFilteredDescendants(child);
+                    }
+                }
+            }
         }
 
         // Update selection counter
@@ -313,15 +515,57 @@
             document.querySelectorAll('input[type="checkbox"][name="selected_paths"]').forEach(cb => {
                 const path = cb.value;
                 const node = findNodeByPath(projectStructure, path);
+
+                if (!node) return;
+
                 if (selectedPaths.has(path)) {
                     cb.checked = true;
                     cb.indeterminate = false;
-                } else if (node.type === 'directory' && isSomeDescendantsSelected(node)) {
-                    cb.checked = false;
-                    cb.indeterminate = true;
+                } else if (node.type === 'directory') {
+                    // For directories, check if any visible descendants are selected
+                    const hasSelectedVisible = hasVisibleSelectedDescendants(node);
+                    const allVisible = allVisibleDescendantsSelected(node);
+
+                    cb.indeterminate = hasSelectedVisible && !allVisible;
+                    cb.checked = allVisible;
                 } else {
                     cb.checked = false;
                     cb.indeterminate = false;
+                }
+            });
+        }
+
+        // Check if any visible descendants are selected
+        function hasVisibleSelectedDescendants(node) {
+            if (!node.children) return false;
+
+            return node.children.some(child => {
+                if (child.type === 'file') {
+                    const fileItem = document.querySelector(`.file-item input[value="${child.path}"]`)?.closest('.file-item');
+                    return selectedPaths.has(child.path) && (!fileItem || !fileItem.classList.contains('filtered'));
+                } else {
+                    const dirItem = document.querySelector(`.dir-item input[value="${child.path}"]`)?.closest('.dir-item');
+                    if (dirItem && dirItem.classList.contains('filtered')) return false;
+                    return selectedPaths.has(child.path) || hasVisibleSelectedDescendants(child);
+                }
+            });
+        }
+
+        // Check if all visible descendants are selected
+        function allVisibleDescendantsSelected(node) {
+            if (!node.children) return true;
+
+            return node.children.every(child => {
+                if (child.type === 'file') {
+                    const fileItem = document.querySelector(`.file-item input[value="${child.path}"]`)?.closest('.file-item');
+                    // If file is filtered out, don't consider it
+                    if (fileItem && fileItem.classList.contains('filtered')) return true;
+                    return selectedPaths.has(child.path);
+                } else {
+                    const dirItem = document.querySelector(`.dir-item input[value="${child.path}"]`)?.closest('.dir-item');
+                    // If directory is filtered out, don't consider it
+                    if (dirItem && dirItem.classList.contains('filtered')) return true;
+                    return selectedPaths.has(child.path) && allVisibleDescendantsSelected(child);
                 }
             });
         }

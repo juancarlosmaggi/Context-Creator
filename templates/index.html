@@ -17,11 +17,199 @@
             outline: none;
         }
     </style>
+
+    <script>
+        // Debounce function to limit how often a function can be called
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+        
+        // Store references to DOM elements to avoid repeated queries
+        const elementCache = new Map();
+        
+        function getElement(selector, parent = document) {
+            const key = parent === document ? selector : `${parent.id || 'unknown'}-${selector}`;
+            if (!elementCache.has(key)) {
+                elementCache.set(key, parent.querySelector(selector));
+            }
+            return elementCache.get(key);
+        }
+        
+        function getElements(selector, parent = document) {
+            const key = parent === document ? `all-${selector}` : `all-${parent.id || 'unknown'}-${selector}`;
+            if (!elementCache.has(key)) {
+                elementCache.set(key, parent.querySelectorAll(selector));
+            }
+            return elementCache.get(key);
+        }
+        
+        // Optimize folder toggling with animation
+        function toggleFolder(button) {
+            const listItem = button.closest('li');
+            const childList = getElement('ul', listItem);
+            const chevron = getElement('svg', button);
+            
+            if (!childList) return;
+            
+            const isHidden = childList.classList.contains('hidden');
+            chevron.classList.toggle('rotate-90');
+            
+            if (isHidden) {
+                // Show folder
+                childList.style.maxHeight = '0';
+                childList.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    childList.style.maxHeight = childList.scrollHeight + 'px';
+                });
+            } else {
+                // Hide folder
+                childList.style.maxHeight = '0';
+                setTimeout(() => childList.classList.add('hidden'), 300);
+            }
+        }
+
+        // Optimize checkbox handling with batch updates
+        const pendingUpdates = new Set();
+        let updateVisualScheduled = false;
+        
+        function scheduleVisualUpdate() {
+            if (!updateVisualScheduled) {
+                updateVisualScheduled = true;
+                requestAnimationFrame(() => {
+                    pendingUpdates.forEach(checkbox => {
+                        updateVisualImmediate(checkbox);
+                    });
+                    pendingUpdates.clear();
+                    updateVisualScheduled = false;
+                });
+            }
+        }
+        
+        function handleCheckboxChange(checkbox, type) {
+            // Remove console.log for production
+            pendingUpdates.add(checkbox);
+            
+            if (type === 'directory') {
+                updateChildren(checkbox, checkbox.checked);
+            }
+            
+            updateParents(checkbox);
+            scheduleVisualUpdate();
+        }
+
+        function updateVisual(checkbox) {
+            pendingUpdates.add(checkbox);
+            scheduleVisualUpdate();
+        }
+        
+        function updateVisualImmediate(checkbox) {
+            const labelSpan = checkbox.nextElementSibling.querySelector('span:first-child');
+            const svg = labelSpan.querySelector('svg');
+            const dash = labelSpan.querySelector('span');
+
+            // Remove all conflicting background and border classes
+            labelSpan.classList.remove('bg-white', 'bg-blue-500', 'border-blue-500', 'bg-blue-200');
+            svg.classList.add('hidden');
+            dash.classList.add('hidden');
+
+            if (checkbox.checked) {
+                // Apply checked styles
+                labelSpan.classList.add('bg-blue-500', 'border-blue-500');
+                svg.classList.remove('hidden');
+            } else if (checkbox.indeterminate) {
+                // Apply indeterminate styles
+                labelSpan.classList.add('bg-blue-200');
+                dash.classList.remove('hidden');
+            } else {
+                // Apply unchecked styles
+                labelSpan.classList.add('bg-white');
+            }
+        }
+
+        // Use a more efficient approach for updating children
+        function updateChildren(checkbox, checked) {
+            const listItem = checkbox.closest('li');
+            const childCheckboxes = getElements(':scope > ul > li > div > input[type="checkbox"]', listItem);
+            
+            // Batch process children
+            for (let i = 0; i < childCheckboxes.length; i++) {
+                const child = childCheckboxes[i];
+                if (child.dataset.updating) continue;
+                
+                child.dataset.updating = 'true';
+                child.checked = checked;
+                pendingUpdates.add(child);
+                
+                const childLi = child.closest('li');
+                if (childLi.querySelector('ul')) {
+                    updateChildren(child, checked);
+                }
+                delete child.dataset.updating;
+            }
+            
+            scheduleVisualUpdate();
+        }
+
+        // Optimize parent updates
+        const debouncedUpdateParents = debounce((checkbox) => {
+            let parentLi = checkbox.closest('ul')?.parentElement.closest('li');
+            const parentsToUpdate = [];
+            
+            while (parentLi) {
+                const parentCheckbox = parentLi.querySelector(':scope > div > input[type="checkbox"]');
+                if (parentCheckbox) {
+                    parentsToUpdate.push(parentCheckbox);
+                }
+                parentLi = parentLi.parentElement.closest('li');
+            }
+            
+            // Process all parents in a batch
+            for (const parentCheckbox of parentsToUpdate) {
+                const parentLi = parentCheckbox.closest('li');
+                const siblingCheckboxes = parentLi.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
+                const total = siblingCheckboxes.length;
+                let checkedCount = 0;
+                
+                for (let i = 0; i < total; i++) {
+                    if (siblingCheckboxes[i].checked) {
+                        checkedCount++;
+                    }
+                }
+                
+                parentCheckbox.checked = checkedCount === total;
+                parentCheckbox.indeterminate = checkedCount > 0 && checkedCount < total;
+                pendingUpdates.add(parentCheckbox);
+            }
+            
+            scheduleVisualUpdate();
+        }, 50);
+        
+        function updateParents(checkbox) {
+            debouncedUpdateParents(checkbox);
+        }
+        
+        // Initialize the tree when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // Pre-expand the first level of folders for better UX
+            const topLevelFolders = document.querySelectorAll('ul > li > div > button.toggle');
+            for (let i = 0; i < Math.min(topLevelFolders.length, 3); i++) {
+                toggleFolder(topLevelFolders[i]);
+            }
+        });
+    </script>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
+        <div class="mb-4 flex items-center">
+            <input type="text" id="search-input" placeholder="Search files and folders..." 
+                   class="px-4 py-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
         <form action="/process/" method="post">
             <ul class="space-y-2">
                 {% macro render_node(node) %}
@@ -80,98 +268,101 @@
                 {{ render_node(child) }}
                 {% endfor %}
             </ul>
-            <button type="submit"
-                class="mt-6 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                Process Selected Files
-            </button>
+            <div class="flex justify-between items-center mt-6">
+                <div>
+                    <button type="button" id="expand-all"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors mr-2">
+                        Expand All
+                    </button>
+                    <button type="button" id="collapse-all"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                        Collapse All
+                    </button>
+                </div>
+                <button type="submit"
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                    Process Selected Files
+                </button>
+            </div>
         </form>
     </div>
-
     <script>
-        function toggleFolder(button) {
-            const listItem = button.closest('li');
-            const childList = listItem.querySelector('ul');
-            const chevron = button.querySelector('svg');
-            childList.classList.toggle('hidden');
-            chevron.classList.toggle('rotate-90');
-            if (!childList.classList.contains('hidden')) {
-                childList.style.maxHeight = '0';
-                childList.classList.remove('hidden');
-                requestAnimationFrame(() => {
-                    childList.style.maxHeight = childList.scrollHeight + 'px';
+        // Add search functionality
+        document.getElementById('search-input').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const allItems = document.querySelectorAll('li');
+            
+            if (!searchTerm) {
+                // If search is empty, show everything
+                allItems.forEach(item => {
+                    item.style.display = '';
                 });
-            } else {
-                childList.style.maxHeight = '0';
-                setTimeout(() => childList.classList.add('hidden'), 300);
+                return;
             }
-        }
-
-        function handleCheckboxChange(checkbox, type) {
-            console.log(`Checkbox changed: ${checkbox.id}, type: ${type}`);
-            updateVisual(checkbox);
-            if (type === 'directory') {
-                updateChildren(checkbox, checkbox.checked);
-            }
-            updateParents(checkbox);
-        }
-
-        function updateVisual(checkbox) {
-            const labelSpan = checkbox.nextElementSibling.querySelector('span:first-child');
-            const svg = labelSpan.querySelector('svg');
-            const dash = labelSpan.querySelector('span');
-
-            // Remove all conflicting background and border classes
-            labelSpan.classList.remove('bg-white', 'bg-blue-500', 'border-blue-500', 'bg-blue-200');
-            svg.classList.add('hidden');
-            dash.classList.add('hidden');
-
-            if (checkbox.checked) {
-                // Apply checked styles
-                labelSpan.classList.add('bg-blue-500', 'border-blue-500');
-                svg.classList.remove('hidden');
-                console.log(`Checked: ${checkbox.id}, Span classes: ${labelSpan.className}, SVG hidden: ${svg.classList.contains('hidden')}`);
-            } else if (checkbox.indeterminate) {
-                // Apply indeterminate styles
-                labelSpan.classList.add('bg-blue-200');
-                dash.classList.remove('hidden');
-                console.log(`Indeterminate: ${checkbox.id}, Span classes: ${labelSpan.className}, Dash hidden: ${dash.classList.contains('hidden')}`);
-            } else {
-                // Apply unchecked styles
-                labelSpan.classList.add('bg-white');
-                console.log(`Unchecked: ${checkbox.id}, Span classes: ${labelSpan.className}`);
-            }
-        }
-
-        function updateChildren(checkbox, checked) {
-            const listItem = checkbox.closest('li');
-            const childCheckboxes = listItem.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
-            childCheckboxes.forEach(child => {
-                if (child.dataset.updating) return;
-                child.dataset.updating = 'true';
-                child.checked = checked;
-                updateVisual(child);
-                const childLi = child.closest('li');
-                if (childLi.querySelector('ul')) {
-                    updateChildren(child, checked);
-                }
-                delete child.dataset.updating;
+            
+            // First hide everything
+            allItems.forEach(item => {
+                item.style.display = 'none';
             });
-        }
-
-        function updateParents(checkbox) {
-            let parentLi = checkbox.closest('ul').parentElement.closest('li');
-            while (parentLi) {
-                const parentCheckbox = parentLi.querySelector(':scope > div > input[type="checkbox"]');
-                if (parentCheckbox) {
-                    const siblingCheckboxes = parentLi.querySelectorAll(':scope > ul > li > div > input[type="checkbox"]');
-                    const checkedCount = Array.from(siblingCheckboxes).filter(c => c.checked).length;
-                    parentCheckbox.checked = checkedCount === siblingCheckboxes.length;
-                    parentCheckbox.indeterminate = checkedCount > 0 && checkedCount < siblingCheckboxes.length;
-                    updateVisual(parentCheckbox);
+            
+            // Then show matching items and their parents
+            allItems.forEach(item => {
+                const nameElement = item.querySelector('label > span:last-child');
+                if (nameElement && nameElement.textContent.toLowerCase().includes(searchTerm)) {
+                    // Show this item
+                    item.style.display = '';
+                    
+                    // Show all parent items
+                    let parent = item.parentElement.closest('li');
+                    while (parent) {
+                        parent.style.display = '';
+                        // Ensure parent folders are expanded
+                        const parentList = parent.querySelector('ul');
+                        if (parentList && parentList.classList.contains('hidden')) {
+                            const toggleButton = parent.querySelector('button.toggle');
+                            if (toggleButton) toggleFolder(toggleButton);
+                        }
+                        parent = parent.parentElement.closest('li');
+                    }
                 }
-                parentLi = parentLi.parentElement.closest('li');
-            }
-        }
+            });
+        });
+        
+        // Add expand/collapse all functionality
+        document.getElementById('expand-all').addEventListener('click', function() {
+            const allFolders = document.querySelectorAll('button.toggle');
+            allFolders.forEach(button => {
+                const listItem = button.closest('li');
+                const childList = listItem.querySelector('ul');
+                if (childList && childList.classList.contains('hidden')) {
+                    toggleFolder(button);
+                }
+            });
+        });
+        
+        document.getElementById('collapse-all').addEventListener('click', function() {
+            const allFolders = document.querySelectorAll('button.toggle');
+            allFolders.forEach(button => {
+                const listItem = button.closest('li');
+                const childList = listItem.querySelector('ul');
+                if (childList && !childList.classList.contains('hidden')) {
+                    toggleFolder(button);
+                }
+            });
+        });
+    </script>
+    
+    <script>
+        // Add periodic index validation
+        setInterval(() => {
+            fetch('/api/index-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.is_valid && !data.is_building) {
+                        window.location.reload();
+                    }
+                });
+        }, 30000); // Check every 30 seconds
     </script>
 </body>
 

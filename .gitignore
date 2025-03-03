@@ -63,3 +63,5 @@ logs/
 .cache/
 .temp/
 tmp/
+.cache/
+project_index.json

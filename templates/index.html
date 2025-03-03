@@ -16,6 +16,10 @@
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
+        <div class="flex space-x-4 mb-4">
+            <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
+            <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
+        </div>
         <form id="process-form" action="/process/" method="post">
             <ul id="project-structure" class="space-y-2"></ul>
             <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Process
@@ -26,7 +30,7 @@
         let projectStructure;
         const selectedPaths = new Set();
 
-        // Fetch project structure from the backend
+        // Fetch project structure
         fetch('/api/project-structure')
             .then(response => {
                 if (!response.ok) throw new Error('Failed to fetch structure');
@@ -124,6 +128,26 @@
             });
         }
 
+        // Expand all folders
+        document.getElementById('expand-all').addEventListener('click', () => {
+            document.querySelectorAll('.toggle').forEach(button => {
+                const childUl = button.closest('li').querySelector('ul');
+                if (childUl && childUl.classList.contains('hidden')) {
+                    button.click();
+                }
+            });
+        });
+
+        // Collapse all folders
+        document.getElementById('collapse-all').addEventListener('click', () => {
+            document.querySelectorAll('.toggle').forEach(button => {
+                const childUl = button.closest('li').querySelector('ul');
+                if (childUl && !childUl.classList.contains('hidden')) {
+                    button.click();
+                }
+            });
+        });
+
         // Handle checkbox changes
         function handleCheckboxChange(checkbox) {
             const path = checkbox.value;
@@ -172,7 +196,7 @@
             }
         }
 
-        // Update checkbox states for all rendered checkboxes
+        // Update checkbox states
         function updateCheckboxStates() {
             document.querySelectorAll('input[type="checkbox"][name="selected_paths"]').forEach(cb => {
                 const path = cb.value;

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,20 +12,26 @@
             -webkit-animation: spinner 1.5s linear infinite;
             animation: spinner 1.5s linear infinite;
         }
-        
+
         @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen flex items-center justify-center">
     <div class="text-center">
         <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4 mx-auto"></div>
         <h2 class="text-xl font-semibold text-gray-800 mb-2">Building Project Index</h2>
         <p class="text-gray-600">This may take a moment for large projects...</p>
     </div>
-    
+
     <script>
         // Check index status every second
         function checkStatus() {
@@ -39,9 +46,10 @@
                     }
                 });
         }
-        
+
         // Start checking immediately
         checkStatus();
     </script>
 </body>
+
 </html>

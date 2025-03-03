@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "context-creator"
+version = "0.1.0"
+description = "A FastAPI application for creating context from files and directories"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "python-multipart",
+    "pathspec",
+]
+
+[project.scripts]
+context-creator = "context_creator.cli:main"
+
+[tool.setuptools]
+packages = ["context_creator"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+context_creator = ["templates/*", "static/*"]

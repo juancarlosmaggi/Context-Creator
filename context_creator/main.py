@@ -12,7 +12,7 @@ import functools
 import concurrent.futures
 import tempfile
 
-app = FastAPI()
+app = FastAPI(title="Context Creator")
 current_dir = Path(__file__).parent
 static_dir = current_dir / "static"
 static_dir.mkdir(exist_ok=True)

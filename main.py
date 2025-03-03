@@ -83,7 +83,8 @@ def get_project_structure(base_path: Path):
         if path.is_dir():
             try:
                 children = [child for child in path.iterdir() if not should_ignore(child)]
-                children.sort(key=lambda x: (x.is_file(), x.name.lower()))
+                # Sort directories first, then files, both alphabetically
+                children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
                 if len(children) > 20:
                     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                         futures = {executor.submit(build_tree, child, root): child for child in children}
@@ -110,7 +111,8 @@ def get_project_structure(base_path: Path):
     
     try:
         children = [child for child in base_path.iterdir() if not should_ignore(child)]
-        children.sort(key=lambda x: (x.is_file(), x.name.lower()))
+        # Sort directories first, then files, both alphabetically
+        children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(build_tree, child, base_path): child for child in children}
             for future in concurrent.futures.as_completed(futures):

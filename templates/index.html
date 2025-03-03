@@ -54,6 +54,16 @@
 
         // Render the project structure
         function renderStructure(nodes, container) {
+            // Sort directories first, then files, both alphabetically
+            nodes.sort((a, b) => {
+                // If types are different, directories come first
+                if (a.type !== b.type) {
+                    return a.type === 'directory' ? -1 : 1;
+                }
+                // If types are the same, sort alphabetically
+                return a.name.localeCompare(b.name);
+            });
+
             nodes.forEach(node => {
                 const li = document.createElement('li');
                 const checkbox = document.createElement('input');

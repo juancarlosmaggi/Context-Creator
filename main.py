@@ -19,7 +19,6 @@ static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
-INDEX_FILE = ".cache/project_index.json"
 CACHE_DIR = Path(".cache")
 CACHE_DIR.mkdir(exist_ok=True)
 
@@ -27,6 +26,8 @@ class IndexStatus:
     _instance = None
     is_building = False
     is_valid = False
+    structure = None
+    created_at = None
     
     def __new__(cls):
         if not cls._instance:
@@ -229,46 +230,26 @@ def process_files(selected_paths: list, base_path: Path):
     return "".join(results)
 
 async def build_and_save_index(base_path: Path):
-    """Build and cache the project structure in the background."""
+    """Build and store the project structure in memory."""
     index_status = IndexStatus()
     try:
         structure = await run_in_threadpool(get_project_structure, base_path)
-        data = {"structure": structure, "created_at": datetime.now().isoformat()}
-        with open(INDEX_FILE, 'w') as f:
-            json.dump(data, f)
+        index_status.structure = structure
+        index_status.created_at = datetime.now()
         index_status.is_valid = True
     finally:
         index_status.is_building = False
 
-def is_index_valid(max_age_hours=24) -> bool:
-    """Check if the index file exists and is recent enough."""
-    index_path = Path(INDEX_FILE)
-    if not index_path.exists():
-        return False
-        
-    # Check if the index is recent enough
-    try:
-        mtime = datetime.fromtimestamp(index_path.stat().st_mtime)
-        age = datetime.now() - mtime
-        if age.total_seconds() > max_age_hours * 3600:
-            return False
-            
-        # Verify the index file is valid JSON
-        with open(index_path, 'r') as f:
-            json.load(f)
-        return True
-    except (json.JSONDecodeError, OSError):
-        return False
-
 async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks):
-    """Get the cached index or trigger a rebuild if necessary."""
+    """Get the in-memory index or trigger a rebuild if necessary."""
     index_status = IndexStatus()
     
-    # If index is already valid, don't rebuild
-    if index_status.is_valid or is_index_valid():
-        index_status.is_valid = True
-        return None
-        
+    # If index is already valid and not too old (24 hours), don't rebuild
+    if index_status.is_valid and index_status.created_at:
+        age = datetime.now() - index_status.created_at
+        if age.total_seconds() <= 24 * 3600:
+            return None
+    
     # If not already building, start the build process
     if not index_status.is_building:
         index_status.is_building = True
@@ -281,10 +262,11 @@ async def index(request: Request, background_tasks: BackgroundTasks):
     base_path = Path.cwd()
     index_status = IndexStatus()
     
-    # If index is valid or can be validated, serve the main page
-    if index_status.is_valid or is_index_valid():
-        index_status.is_valid = True
-        return templates.TemplateResponse("index.html", {"request": request})
+    # If index is valid and recent enough, serve the main page
+    if index_status.is_valid and index_status.created_at:
+        age = datetime.now() - index_status.created_at
+        if age.total_seconds() <= 24 * 3600:
+            return templates.TemplateResponse("index.html", {"request": request})
     
     # Otherwise, trigger a build and show the loading page
     await get_or_build_index(base_path, background_tasks)
@@ -326,9 +308,8 @@ async def process_files_route(selected_paths: list = Form(...)):
 
 @app.get("/api/project-structure")
 async def get_project_structure_json():
-    """Serve the cached project structure JSON."""
-    if not os.path.exists(INDEX_FILE):
+    """Serve the in-memory project structure."""
+    index_status = IndexStatus()
+    if not index_status.structure:
         return JSONResponse(content={"error": "Index is not built yet"}, status_code=503)
-    with open(INDEX_FILE, 'r') as f:
-        data = json.load(f)
-    return JSONResponse(content=data["structure"])
+    return JSONResponse(content=index_status.structure)

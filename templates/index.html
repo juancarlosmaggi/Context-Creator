@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Explorer</title>
+    <title id="page-title">Project Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .toggle svg.rotate-90 {
@@ -78,7 +78,7 @@
 
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
+        <h1 id="project-heading" class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
 
         <!-- Add search/filter input -->
         <div class="mb-4">
@@ -122,6 +122,13 @@
         let filteredStructure;
         const selectedPaths = new Set();
         let filterText = '';
+        let projectName = '';
+
+        // Function to capitalize first letter of a string
+        function capitalizeFirstLetter(string) {
+            if (!string) return string;
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
 
         // Fetch project structure
         fetch('/api/project-structure')
@@ -131,6 +138,13 @@
             })
             .then(data => {
                 projectStructure = data;
+                // Get project name from root directory
+                if (projectStructure && projectStructure.name) {
+                    projectName = capitalizeFirstLetter(projectStructure.name);
+                    // Update title and heading with project name
+                    document.getElementById('page-title').textContent = `Project Explorer - ${projectName}`;
+                    document.getElementById('project-heading').textContent = `Project Explorer - ${projectName}`;
+                }
                 // Process the structure to remove empty directories
                 projectStructure = removeEmptyDirectories(projectStructure);
                 filteredStructure = projectStructure; // Initially, filtered = full structure

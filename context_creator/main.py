@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
+from typing import Union
 import os
 import json
 from pathlib import Path
@@ -34,7 +35,7 @@ class IndexStatus:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-def find_git_root(path: Path) -> Path | None:
+def find_git_root(path: Path) -> Union[Path, None]:  # Instead of Path | None
     """Find the nearest parent directory containing a .git folder."""
     while path != path.parent:
         if (path / ".git").exists():

@@ -204,6 +204,9 @@ def get_project_structure(base_path: Path):
 
 def process_files(selected_paths: list, base_path: Path):
     """Process selected files and directories into a single text output."""
+    git_root = find_git_root(base_path)
+    ignore_spec = parse_gitignore(git_root) if git_root else None
+    
     output = []
     
     def process_file(file_path: Path):
@@ -217,13 +220,18 @@ def process_files(selected_paths: list, base_path: Path):
         except (UnicodeDecodeError, PermissionError, OSError):
             return f"# File: {file_path.relative_to(base_path)}\n# [Unable to process file]\n\n"
     
-    all_files = []
+    all_files = set()
     for path in selected_paths:
         full_path = base_path / path
-        if full_path.is_dir():
-            all_files.extend([f for f in full_path.rglob("*") if f.is_file()])
-        elif full_path.is_file():
-            all_files.append(full_path)
+        if full_path.is_file():
+            if not (ignore_spec and should_ignore(full_path, git_root, ignore_spec)):
+                all_files.add(full_path)
+        elif full_path.is_dir():
+            for f in full_path.rglob("*"):
+                if f.is_file() and not (ignore_spec and should_ignore(f, git_root, ignore_spec)):
+                    all_files.add(f)
+    
+    all_files = sorted(all_files, key=lambda f: str(f.relative_to(base_path)))
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, os.cpu_count() * 4)) as executor:
         results = list(executor.map(process_file, all_files))
@@ -280,7 +288,7 @@ async def get_index_status():
     return {"is_valid": status.is_valid, "is_building": status.is_building}
 
 @app.post("/process/", response_class=FileResponse)
-async def process_files_route(selected_paths: list = Form(...)):
+async def process_files_route(background_tasks: BackgroundTasks, selected_paths: list = Form(...)):
     """Process selected paths and return the output as a temporary file."""
     base_path = Path.cwd()
     processed_content = process_files(selected_paths, base_path)
@@ -295,12 +303,16 @@ async def process_files_route(selected_paths: list = Form(...)):
         temp_file.flush()
         temp_file.close()
         
+        # Prepare background tasks
+        bg_tasks = background_tasks
+        bg_tasks.add_task(os.unlink, temp_file.name)
+        
         # Return the temporary file as a response with the desired filename
         return FileResponse(
             path=temp_file.name, 
             filename=output_filename,
             media_type="text/plain",
-            background=BackgroundTasks().add_task(lambda: os.unlink(temp_file.name))
+            background=bg_tasks
         )
     except Exception as e:
         # Clean up the file if there's an error

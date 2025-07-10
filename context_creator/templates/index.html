@@ -105,7 +105,7 @@
 
         <!-- Selection Counter Badge -->
         <div id="selection-counter" class="selection-counter bg-blue-100 text-blue-800">
-            <span id="selected-count">0</span>&nbsp;files selected
+            <span id="selected-count">0</span> files selected
         </div>
 
         <!-- Floating Action Button -->
@@ -301,17 +301,18 @@
                 const li = document.createElement('li');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.name = 'selected_paths';
                 checkbox.value = node.path;
                 checkbox.className = 'mr-2';
-                checkbox.checked = selectedPaths.has(node.path);
-                if (node.type === 'directory') {
-                    const originalNode = findNodeByPath(projectStructure, node.path);
-                    if (originalNode) {
-                        const allSelected = isAllDescendantsSelected(originalNode);
-                        const someSelected = isSomeDescendantsSelected(originalNode);
-                        checkbox.indeterminate = someSelected && !allSelected;
-                    }
+
+                if (node.type === 'file') {
+                    checkbox.name = 'selected_paths';
+                    checkbox.checked = selectedPaths.has(node.path);
+                } else {
+                    // For directories, no name attribute to avoid submitting directory paths
+                    const allSelected = isAllDescendantsSelected(node);
+                    const someSelected = isSomeDescendantsSelected(node);
+                    checkbox.indeterminate = someSelected && !allSelected;
+                    checkbox.checked = allSelected;
                 }
 
                 const div = document.createElement('div');
@@ -429,85 +430,60 @@
             });
         });
 
+        // Get all descendant files of a node
+        function getAllDescendantFiles(node) {
+            let files = [];
+            if (node.type === 'file') {
+                files.push(node);
+            } else if (node.children) {
+                node.children.forEach(child => {
+                    files = files.concat(getAllDescendantFiles(child));
+                });
+            }
+            return files;
+        }
+
+        // Select all descendant files of a node
+        function selectDescendantFiles(node) {
+            getAllDescendantFiles(node).forEach(file => {
+                selectedPaths.add(file.path);
+            });
+        }
+
+        // Deselect all descendant files of a node
+        function deselectDescendantFiles(node) {
+            getAllDescendantFiles(node).forEach(file => {
+                selectedPaths.delete(file.path);
+            });
+        }
+
         // Handle checkbox changes
         function handleCheckboxChange(checkbox) {
             const path = checkbox.value;
-            const node = findNodeByPath(projectStructure, path);
+            const currentStructure = filterText ? filteredStructure : projectStructure;
+            const node = findNodeByPath(currentStructure, path);
             if (!node) return;
 
             if (checkbox.checked) {
-                selectedPaths.add(path);
                 if (node.type === 'directory') {
-                    if (filterText) {
-                        // If filtering is active, only select visible descendants
-                        selectFilteredDescendants(node);
-                    } else {
-                        // If no filtering, select all descendants
-                        selectAllDescendants(node);
-                    }
+                    selectDescendantFiles(node);
+                } else {
+                    selectedPaths.add(path);
                 }
             } else {
-                selectedPaths.delete(path);
                 if (node.type === 'directory') {
-                    deselectAllDescendants(node);
+                    deselectDescendantFiles(node);
+                } else {
+                    selectedPaths.delete(path);
                 }
             }
             updateCheckboxStates();
             updateSelectionCounter();
         }
 
-        // Select descendants that match the current filter
-        function selectFilteredDescendants(node) {
-            // Find the filtered version of this node
-            const filteredNode = findNodeByPath(filteredStructure, node.path);
-
-            // If this node isn't in the filtered structure, don't select anything
-            if (!filteredNode) return;
-
-            // Select this node
-            selectedPaths.add(node.path);
-
-            // For each child in the original node
-            for (const child of node.children || []) {
-                // Check if this child exists in the filtered structure
-                const isVisible = filteredNode.children &&
-                    filteredNode.children.some(fChild => fChild.path === child.path);
-
-                if (isVisible) {
-                    // If it's visible in the filtered view, select it
-                    selectedPaths.add(child.path);
-
-                    // If it's a directory, recursively process it
-                    if (child.type === 'directory') {
-                        selectFilteredDescendants(child);
-                    }
-                }
-            }
-        }
-
-        // Select all descendants of a directory
-        function selectAllDescendants(node) {
-            for (const child of node.children || []) {
-                selectedPaths.add(child.path);
-                if (child.type === 'directory') {
-                    selectAllDescendants(child);
-                }
-            }
-        }
-
-        // Deselect all descendants of a directory
-        function deselectAllDescendants(node) {
-            for (const child of node.children || []) {
-                selectedPaths.delete(child.path);
-                if (child.type === 'directory') {
-                    deselectAllDescendants(child);
-                }
-            }
-        }
-
         // Update selection counter
         function updateSelectionCounter() {
-            const selectedCount = countSelectedFiles(projectStructure);
+            const selectedCount = selectedPaths.size;
             const counterElement = document.getElementById('selection-counter');
             const countElement = document.getElementById('selected-count');
             const processButton = document.getElementById('process-button');
@@ -522,31 +498,6 @@
             }
         }
 
-        // Count selected files (not directories)
-        function countSelectedFiles(root) {
-            let count = 0;
-
-            // Function to recursively count selected files
-            function countFiles(node) {
-                if (!node) return;
-
-                // Count this node if it's a file and selected
-                if (node.type === 'file' && selectedPaths.has(node.path)) {
-                    count++;
-                }
-
-                // Recursively check children
-                if (node.children) {
-                    for (const child of node.children) {
-                        countFiles(child);
-                    }
-                }
-            }
-
-            countFiles(root);
-            return count;
-        }
-
         // Find a node by its path
         function findNodeByPath(root, path) {
             if (root.path === path) return root;
@@ -559,23 +510,21 @@
 
         // Update checkbox states
         function updateCheckboxStates() {
-            document.querySelectorAll('input[type="checkbox"][name="selected_paths"]').forEach(cb => {
+            const currentStructure = filterText ? filteredStructure : projectStructure;
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const path = cb.value;
-                const node = findNodeByPath(projectStructure, path);
+                const node = findNodeByPath(currentStructure, path);
 
                 if (!node) return;
 
-                if (selectedPaths.has(path)) {
-                    cb.checked = true;
-                    cb.indeterminate = false;
-                } else if (node.type === 'directory') {
+                if (node.type === 'directory') {
                     const allSelected = isAllDescendantsSelected(node);
                     const someSelected = isSomeDescendantsSelected(node);
 
                     cb.indeterminate = someSelected && !allSelected;
                     cb.checked = allSelected;
                 } else {
-                    cb.checked = false;
+                    cb.checked = selectedPaths.has(path);
                     cb.indeterminate = false;
                 }
             });
@@ -583,17 +532,52 @@
 
         // Check if all descendants are selected
         function isAllDescendantsSelected(node) {
-            return node.children.every(child =>
-                selectedPaths.has(child.path) && (child.type !== 'directory' || isAllDescendantsSelected(child))
-            );
+            const descendantFiles = getAllDescendantFiles(node);
+            if (descendantFiles.length === 0) return false;
+            return descendantFiles.every(file => selectedPaths.has(file.path));
         }
 
         // Check if some descendants are selected
         function isSomeDescendantsSelected(node) {
-            return node.children.some(child =>
-                selectedPaths.has(child.path) || (child.type === 'directory' && isSomeDescendantsSelected(child))
-            );
+            const descendantFiles = getAllDescendantFiles(node);
+            return descendantFiles.some(file => selectedPaths.has(file.path));
         }
+
+        // Intercept form submission to send all selected paths
+        const processForm = document.getElementById('process-form');
+        processForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const formData = new FormData();
+            selectedPaths.forEach(path => {
+                formData.append('selected_paths', path);
+            });
+            fetch('/process/', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'llm_input.txt';
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="(.+)"/);
+                    if (match) filename = match[1];
+                }
+                return response.blob().then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                });
+            }).catch(error => {
+                console.error('Error:', error);
+            });
+        });
     </script>
 </body>
 

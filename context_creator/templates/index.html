@@ -376,6 +376,7 @@
                         if (childUl.classList.contains('hidden')) {
                             if (!childUl.hasChildNodes() && node.children) {
                                 renderStructure(node.children, childUl);
+                                updateCheckboxStates();
                             }
                             childUl.classList.remove('hidden');
                             toggleButton.querySelector('svg').classList.add('rotate-90');

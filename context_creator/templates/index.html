@@ -98,6 +98,8 @@
         <div class="flex space-x-4 mb-4">
             <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
             <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
+            <button id="select-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Select All</button>
+            <button id="deselect-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Deselect All</button>
         </div>
         <form id="process-form" action="/process/" method="post">
             <ul id="project-structure" class="space-y-2 mb-10"></ul>
@@ -429,6 +431,24 @@
                     button.click();
                 }
             });
+        });
+
+        // Select all visible files
+        document.getElementById('select-all').addEventListener('click', () => {
+            getAllDescendantFiles(filteredStructure).forEach(file => {
+                selectedPaths.add(file.path);
+            });
+            updateCheckboxStates();
+            updateSelectionCounter();
+        });
+
+        // Deselect all visible files
+        document.getElementById('deselect-all').addEventListener('click', () => {
+            getAllDescendantFiles(filteredStructure).forEach(file => {
+                selectedPaths.delete(file.path);
+            });
+            updateCheckboxStates();
+            updateSelectionCounter();
         });
 
         // Get all descendant files of a node

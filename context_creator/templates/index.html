@@ -113,7 +113,7 @@
             class="floating-button bg-blue-500 text-white hover:bg-blue-600" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2" />
             </svg>
         </button>
     </div>
@@ -559,24 +559,16 @@
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                const contentDisposition = response.headers.get('Content-Disposition');
-                let filename = 'llm_input.txt';
-                if (contentDisposition) {
-                    const match = contentDisposition.match(/filename="(.+)"/);
-                    if (match) filename = match[1];
-                }
-                return response.blob().then(blob => {
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
+                return response.text();
+            }).then(text => {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Copied to clipboard!");
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
                 });
             }).catch(error => {
                 console.error('Error:', error);
+                alert('Failed to process files.');
             });
         });
     </script>

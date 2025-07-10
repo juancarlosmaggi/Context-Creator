@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
@@ -287,37 +287,12 @@ async def get_index_status():
     status = IndexStatus()
     return {"is_valid": status.is_valid, "is_building": status.is_building}
 
-@app.post("/process/", response_class=FileResponse)
-async def process_files_route(background_tasks: BackgroundTasks, selected_paths: list = Form(...)):
-    """Process selected paths and return the output as a temporary file."""
+@app.post("/process/")
+async def process_files_route(selected_paths: list = Form(...)):
+    """Process selected paths and return the output as text."""
     base_path = Path.cwd()
     processed_content = process_files(selected_paths, base_path)
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    output_filename = f"llm_input_{timestamp}.txt"
-    
-    # Create a named temporary file that will persist until the response is complete
-    temp_file = tempfile.NamedTemporaryFile(mode="w+", suffix=".txt", delete=False)
-    try:
-        # Write content to the temporary file
-        temp_file.write(processed_content)
-        temp_file.flush()
-        temp_file.close()
-        
-        # Prepare background tasks
-        bg_tasks = background_tasks
-        bg_tasks.add_task(os.unlink, temp_file.name)
-        
-        # Return the temporary file as a response with the desired filename
-        return FileResponse(
-            path=temp_file.name, 
-            filename=output_filename,
-            media_type="text/plain",
-            background=bg_tasks
-        )
-    except Exception as e:
-        # Clean up the file if there's an error
-        os.unlink(temp_file.name)
-        raise e
+    return Response(content=processed_content, media_type="text/plain")
 
 @app.get("/api/project-structure")
 async def get_project_structure_json():

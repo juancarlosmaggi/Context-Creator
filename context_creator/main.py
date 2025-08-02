@@ -213,10 +213,52 @@ def process_files(selected_paths: list, base_path: Path):
         try:
             if file_path.stat().st_size > 10 * 1024 * 1024:  # Skip files > 10MB
                 return f"# File: {file_path.relative_to(base_path)}\n# [File too large - {file_path.stat().st_size / 1024 / 1024:.2f} MB]\n\n"
+            
+            # Get file extension for markdown syntax highlighting
+            ext = file_path.suffix.lower()
+            lang_map = {
+                '.py': 'python',
+                '.js': 'javascript',
+                '.jsx': 'jsx',
+                '.ts': 'typescript',
+                '.tsx': 'tsx',
+                '.php': 'php',
+                '.html': 'html',
+                '.css': 'css',
+                '.scss': 'scss',
+                '.json': 'json',
+                '.md': 'markdown',
+                '.sh': 'bash',
+                '.go': 'go',
+                '.rs': 'rust',
+                '.java': 'java',
+                '.kt': 'kotlin',
+                '.swift': 'swift',
+                '.rb': 'ruby',
+                '.c': 'c',
+                '.cpp': 'cpp',
+                '.h': 'cpp',
+                '.cs': 'csharp',
+                '.m': 'objectivec',
+                '.pl': 'perl',
+                '.lua': 'lua',
+                '.sql': 'sql',
+                '.xml': 'xml',
+                '.yaml': 'yaml',
+                '.yml': 'yaml',
+                '.toml': 'toml',
+                '.ini': 'ini',
+                '.cfg': 'ini',
+                '.conf': 'ini',
+            }
+            lang = lang_map.get(ext, '')
+            
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 relative_path = file_path.relative_to(base_path)
-                return f"# File: {relative_path}\n{content}\n\n"
+                if lang:
+                    return f"# File: {relative_path}\n```{lang}\n{content}\n```\n\n"
+                return f"# File: {relative_path}\n```\n{content}\n```\n\n"
         except (UnicodeDecodeError, PermissionError, OSError):
             return f"# File: {file_path.relative_to(base_path)}\n# [Unable to process file]\n\n"
     

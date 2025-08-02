@@ -118,7 +118,30 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2" />
             </svg>
         </button>
+
     </div>
+    <!-- Toast Notification Container - moved outside main container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[9999] space-y-2"></div>
+
+    <style>
+        /* Toast animation */
+        @keyframes toast-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toast-out {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast {
+            animation: toast-in 0.3s ease-out forwards;
+            z-index: 9999;
+            position: relative;
+        }
+        .toast.hide {
+            animation: toast-out 0.3s ease-in forwards;
+        }
+    </style>
     <script>
         let projectStructure;
         let filteredStructure;
@@ -564,6 +587,45 @@
             return descendantFiles.some(file => selectedPaths.has(file.path));
         }
 
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            // Set base classes
+            let toastClasses = 'toast px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-xs';
+            
+            // Add type-specific classes
+            switch(type) {
+                case 'success':
+                    toastClasses += ' bg-green-500 text-white';
+                    break;
+                case 'error':
+                    toastClasses += ' bg-red-500 text-white';
+                    break;
+                default:
+                    toastClasses += ' bg-blue-500 text-white';
+            }
+            
+            toast.className = toastClasses;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button class="ml-2" onclick="this.parentElement.classList.add('hide')">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-dismiss after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('hide');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
         // Intercept form submission to send all selected paths
         const processForm = document.getElementById('process-form');
         processForm.addEventListener('submit', (event) => {
@@ -582,13 +644,14 @@
                 return response.text();
             }).then(text => {
                 navigator.clipboard.writeText(text).then(() => {
-                    alert("Copied to clipboard!");
+                    showToast("Copied to clipboard!", "success");
                 }).catch(err => {
                     console.error('Failed to copy: ', err);
+                    showToast("Failed to copy to clipboard", "error");
                 });
             }).catch(error => {
                 console.error('Error:', error);
-                alert('Failed to process files.');
+                showToast('Failed to process files', 'error');
             });
         });
     </script>

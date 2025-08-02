@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +9,6 @@
         .toggle svg.rotate-90 {
             transform: rotate(90deg);
         }
-
         /* Floating Action Button Styles */
         .floating-button {
             position: fixed;
@@ -26,12 +24,10 @@
             transition: all 0.3s ease;
             z-index: 100;
         }
-
         .floating-button:hover {
             transform: scale(1.05);
             box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
         }
-
         /* Selection Counter Badge */
         .selection-counter {
             position: fixed;
@@ -46,40 +42,33 @@
             display: none;
             /* Hidden by default */
         }
-
         .selection-counter.visible {
             display: flex;
         }
-
         /* Disabled button style */
         .floating-button:disabled {
             background-color: #9ca3af;
             cursor: not-allowed;
             transform: none;
         }
-
         /* Hide files not matching filter */
         .file-item.filtered {
             display: none;
         }
-
         /* Highlight matching text */
         .highlight {
             background-color: #FFFF00;
             font-weight: bold;
         }
-
         /* Hide folders without matching descendants */
         .dir-item.filtered {
             display: none;
         }
     </style>
 </head>
-
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto p-6">
         <h1 id="project-heading" class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
-
         <!-- Add search/filter input -->
         <div class="mb-4">
             <div class="relative">
@@ -94,22 +83,20 @@
                 </button>
             </div>
         </div>
-
         <div class="flex space-x-4 mb-4">
             <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
             <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
             <button id="select-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Select All</button>
             <button id="deselect-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Deselect All</button>
+            <button id="refresh-index" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Refresh Structure</button>
         </div>
         <form id="process-form" action="/process/" method="post">
             <ul id="project-structure" class="space-y-2 mb-10"></ul>
         </form>
-
         <!-- Selection Counter Badge -->
         <div id="selection-counter" class="selection-counter bg-blue-100 text-blue-800">
             <span id="selected-count">0</span> files selected
         </div>
-
         <!-- Floating Action Button -->
         <button type="submit" form="process-form" id="process-button"
             class="floating-button bg-blue-500 text-white hover:bg-blue-600" disabled>
@@ -118,11 +105,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2" />
             </svg>
         </button>
-
     </div>
     <!-- Toast Notification Container - moved outside main container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[9999] space-y-2"></div>
-
     <style>
         /* Toast animation */
         @keyframes toast-in {
@@ -148,13 +133,11 @@
         const selectedPaths = new Set();
         let filterText = '';
         let projectName = '';
-
         // Function to capitalize first letter of a string
         function capitalizeFirstLetter(string) {
             if (!string) return string;
             return string.charAt(0).toUpperCase() + string.slice(1);
         }
-
         // Fetch project structure
         fetch('/api/project-structure')
             .then(response => {
@@ -179,12 +162,10 @@
                 console.error('Error:', error);
                 document.getElementById('project-structure').innerHTML = '<li class="text-red-500">Error loading project structure</li>';
             });
-
         // Function to remove empty directories recursively
         function removeEmptyDirectories(node) {
             // For non-directories, return as is
             if (node.type !== 'directory') return node;
-
             // Skip the root folder even if empty
             if (!node.parent) {
                 if (node.children && node.children.length > 0) {
@@ -195,13 +176,11 @@
                 }
                 return node;
             }
-
             // Process children recursively
             if (node.children && node.children.length > 0) {
                 node.children = node.children
                     .map(removeEmptyDirectories)
                     .filter(child => child !== null);
-
                 // If after processing, this directory has no children, return null
                 if (node.children.length === 0) {
                     return null;
@@ -210,56 +189,45 @@
                 // If directory has no children initially, return null
                 return null;
             }
-
             return node;
         }
-
         // Event delegation for checkbox changes
         document.getElementById('project-structure').addEventListener('change', (event) => {
             if (event.target.type === 'checkbox') {
                 handleCheckboxChange(event.target);
             }
         });
-
         // File filter functionality
         const fileFilter = document.getElementById('file-filter');
         const clearFilterBtn = document.getElementById('clear-filter');
-
         fileFilter.addEventListener('input', () => {
             filterText = fileFilter.value.trim().toLowerCase();
             applyFilter(filterText);
             updateCheckboxStates();
         });
-
         clearFilterBtn.addEventListener('click', () => {
             fileFilter.value = '';
             filterText = '';
             applyFilter('');
             updateCheckboxStates();
         });
-
         // Apply filter to file structure
         function applyFilter(filterText) {
             if (!projectStructure) return;
-
             // Clear the current render
             const container = document.getElementById('project-structure');
             container.innerHTML = '';
-
             // Reset filter info
             const existingInfo = document.getElementById('filter-info');
             if (existingInfo) existingInfo.remove();
-
             if (filterText === '') {
                 // When filter is empty, use the original structure
                 filteredStructure = projectStructure;
                 renderStructure(filteredStructure.children, container);
                 return;
             }
-
             // Create a filtered version of the structure
             filteredStructure = createFilteredStructure(projectStructure, filterText);
-
             // Render the filtered structure
             if (filteredStructure.children && filteredStructure.children.length > 0) {
                 renderStructure(filteredStructure.children, container, true);
@@ -272,12 +240,10 @@
                 container.appendChild(info);
             }
         }
-
         // Create a filtered structure based on the filter text
         function createFilteredStructure(node, filterText) {
             // Create a shallow copy of the node
             const result = { ...node };
-
             // For files, include if they match the filter
             if (node.type === 'file') {
                 if (node.name.toLowerCase().includes(filterText.toLowerCase())) {
@@ -285,28 +251,23 @@
                 }
                 return null; // Skip this file
             }
-
             // For directories, filter their children and preserve the original children reference
             if (node.type === 'directory' && node.children) {
                 // Deep copy children array but shallow copy each child
                 result.children = node.children
                     .map(child => createFilteredStructure(child, filterText))
                     .filter(child => child !== null);
-
                 // Only include directories that have matching children
                 if (result.children.length > 0) {
                     return result;
                 }
                 return null; // Skip empty directories
             }
-
             return result;
         }
-
         // Render the project structure
         function renderStructure(nodes, container, isFiltered = false) {
             if (!nodes || nodes.length === 0) return;
-
             // Sort directories first, then files, both alphabetically
             nodes.sort((a, b) => {
                 // If types are different, directories come first
@@ -316,19 +277,16 @@
                 // If types are the same, sort alphabetically
                 return a.name.localeCompare(b.name);
             });
-
             nodes.forEach(node => {
                 // Skip rendering empty directories
                 if (node.type === 'directory' && (!node.children || node.children.length === 0)) {
                     return;
                 }
-
                 const li = document.createElement('li');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.value = node.path;
                 checkbox.className = 'mr-2';
-
                 if (node.type === 'file') {
                     checkbox.name = 'selected_paths';
                     checkbox.checked = selectedPaths.has(node.path);
@@ -339,11 +297,9 @@
                     checkbox.indeterminate = someSelected && !allSelected;
                     checkbox.checked = allSelected;
                 }
-
                 const div = document.createElement('div');
                 div.className = `flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
                 div.appendChild(checkbox);
-
                 if (node.type === 'directory') {
                     const toggleButton = document.createElement('button');
                     toggleButton.type = 'button';
@@ -371,31 +327,25 @@
                         </span>
                     `;
                 }
-
                 const nameSpan = document.createElement('span');
                 nameSpan.className = `text-gray-700 ${node.type === 'file' ? 'file-name' : ''}`;
                 nameSpan.setAttribute('data-name', node.name);
-
                 // Highlight matching text when filtered
                 if (filterText && node.type === 'file') {
                     highlightMatch(nameSpan, node.name, filterText);
                 } else {
                     nameSpan.textContent = node.name;
                 }
-
                 div.appendChild(nameSpan);
                 li.appendChild(div);
-
                 if (node.type === 'directory') {
                     const childUl = document.createElement('ul');
                     childUl.className = `pl-6 space-y-2 ${isFiltered ? '' : 'hidden'}`;
                     li.appendChild(childUl);
-
                     // If we're showing filtered results, pre-render all children
                     if (isFiltered && node.children && node.children.length > 0) {
                         renderStructure(node.children, childUl, isFiltered);
                     }
-
                     const toggleButton = div.querySelector('.toggle');
                     toggleButton.addEventListener('click', () => {
                         if (childUl.classList.contains('hidden')) {
@@ -414,18 +364,15 @@
                 container.appendChild(li);
             });
         }
-
         // Highlight matching text in an element
         function highlightMatch(element, text, filterText) {
             if (!filterText) {
                 element.textContent = text;
                 return;
             }
-
             const lowerText = text.toLowerCase();
             const filterLower = filterText.toLowerCase();
             const index = lowerText.indexOf(filterLower);
-
             if (index >= 0) {
                 const before = text.substring(0, index);
                 const match = text.substring(index, index + filterText.length);
@@ -435,7 +382,6 @@
                 element.textContent = text;
             }
         }
-
         // Expand all folders
         document.getElementById('expand-all').addEventListener('click', () => {
             document.querySelectorAll('.toggle').forEach(button => {
@@ -445,7 +391,6 @@
                 }
             });
         });
-
         // Collapse all folders
         document.getElementById('collapse-all').addEventListener('click', () => {
             document.querySelectorAll('.toggle').forEach(button => {
@@ -455,7 +400,6 @@
                 }
             });
         });
-
         // Select all visible files
         document.getElementById('select-all').addEventListener('click', () => {
             getAllDescendantFiles(filteredStructure).forEach(file => {
@@ -464,7 +408,6 @@
             updateCheckboxStates();
             updateSelectionCounter();
         });
-
         // Deselect all visible files
         document.getElementById('deselect-all').addEventListener('click', () => {
             getAllDescendantFiles(filteredStructure).forEach(file => {
@@ -473,7 +416,6 @@
             updateCheckboxStates();
             updateSelectionCounter();
         });
-
         // Get all descendant files of a node
         function getAllDescendantFiles(node) {
             let files = [];
@@ -486,28 +428,24 @@
             }
             return files;
         }
-
         // Select all descendant files of a node
         function selectDescendantFiles(node) {
             getAllDescendantFiles(node).forEach(file => {
                 selectedPaths.add(file.path);
             });
         }
-
         // Deselect all descendant files of a node
         function deselectDescendantFiles(node) {
             getAllDescendantFiles(node).forEach(file => {
                 selectedPaths.delete(file.path);
             });
         }
-
         // Handle checkbox changes
         function handleCheckboxChange(checkbox) {
             const path = checkbox.value;
             const currentStructure = filterText ? filteredStructure : projectStructure;
             const node = findNodeByPath(currentStructure, path);
             if (!node) return;
-
             if (checkbox.checked) {
                 if (node.type === 'directory') {
                     selectDescendantFiles(node);
@@ -524,14 +462,12 @@
             updateCheckboxStates();
             updateSelectionCounter();
         }
-
         // Update selection counter
         function updateSelectionCounter() {
             const selectedCount = selectedPaths.size;
             const counterElement = document.getElementById('selection-counter');
             const countElement = document.getElementById('selected-count');
             const processButton = document.getElementById('process-button');
-
             if (selectedCount > 0) {
                 countElement.textContent = selectedCount;
                 counterElement.classList.add('visible');
@@ -541,7 +477,6 @@
                 processButton.setAttribute('disabled', 'true');
             }
         }
-
         // Find a node by its path
         function findNodeByPath(root, path) {
             if (root.path === path) return root;
@@ -551,20 +486,16 @@
             }
             return null;
         }
-
         // Update checkbox states
         function updateCheckboxStates() {
             const currentStructure = filterText ? filteredStructure : projectStructure;
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const path = cb.value;
                 const node = findNodeByPath(currentStructure, path);
-
                 if (!node) return;
-
                 if (node.type === 'directory') {
                     const allSelected = isAllDescendantsSelected(node);
                     const someSelected = isSomeDescendantsSelected(node);
-
                     cb.indeterminate = someSelected && !allSelected;
                     cb.checked = allSelected;
                 } else {
@@ -573,28 +504,25 @@
                 }
             });
         }
-
         // Check if all descendants are selected
         function isAllDescendantsSelected(node) {
             const descendantFiles = getAllDescendantFiles(node);
             if (descendantFiles.length === 0) return false;
             return descendantFiles.every(file => selectedPaths.has(file.path));
         }
-
         // Check if some descendants are selected
         function isSomeDescendantsSelected(node) {
             const descendantFiles = getAllDescendantFiles(node);
             return descendantFiles.some(file => selectedPaths.has(file.path));
         }
-
         // Show toast notification
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            
+           
             // Set base classes
             let toastClasses = 'toast px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-xs';
-            
+           
             // Add type-specific classes
             switch(type) {
                 case 'success':
@@ -606,7 +534,7 @@
                 default:
                     toastClasses += ' bg-blue-500 text-white';
             }
-            
+           
             toast.className = toastClasses;
             toast.innerHTML = `
                 <span>${message}</span>
@@ -616,16 +544,15 @@
                     </svg>
                 </button>
             `;
-            
+           
             container.appendChild(toast);
-            
+           
             // Auto-dismiss after 3 seconds
             setTimeout(() => {
                 toast.classList.add('hide');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
-
         // Intercept form submission to send all selected paths
         const processForm = document.getElementById('process-form');
         processForm.addEventListener('submit', (event) => {
@@ -654,7 +581,34 @@
                 showToast('Failed to process files', 'error');
             });
         });
+        // Refresh index button
+        document.getElementById('refresh-index').addEventListener('click', () => {
+            fetch('/api/rebuild-index', { method: 'POST' })
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to rebuild index');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'rebuilding') {
+                        showToast("Rebuilding project index...", "info");
+                        const interval = setInterval(() => {
+                            fetch('/api/index-status')
+                                .then(res => res.json())
+                                .then(status => {
+                                    if (status.is_valid) {
+                                        clearInterval(interval);
+                                        window.location.reload();
+                                    }
+                                })
+                                .catch(err => console.error('Status check failed:', err));
+                        }, 1000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error rebuilding index:', error);
+                    showToast('Failed to rebuild index', 'error');
+                });
+        });
     </script>
 </body>
-
 </html>

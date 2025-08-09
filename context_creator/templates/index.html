@@ -82,6 +82,12 @@
                     </svg>
                 </button>
             </div>
+            <div class="mt-2">
+                <label class="flex items-center space-x-2 text-sm text-gray-600">
+                    <input type="checkbox" id="regex-mode">
+                    <span>Use Regex</span>
+                </label>
+            </div>
         </div>
         <div class="flex space-x-4 mb-4">
             <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
@@ -133,6 +139,7 @@
         const selectedPaths = new Set();
         let filterText = '';
         let projectName = '';
+        let isRegexMode = false;
         // Function to capitalize first letter of a string
         function capitalizeFirstLetter(string) {
             if (!string) return string;
@@ -200,8 +207,14 @@
         // File filter functionality
         const fileFilter = document.getElementById('file-filter');
         const clearFilterBtn = document.getElementById('clear-filter');
+        const regexModeCheckbox = document.getElementById('regex-mode');
         fileFilter.addEventListener('input', () => {
-            filterText = fileFilter.value.trim().toLowerCase();
+            filterText = fileFilter.value.trim();
+            applyFilter(filterText);
+            updateCheckboxStates();
+        });
+        regexModeCheckbox.addEventListener('change', () => {
+            isRegexMode = regexModeCheckbox.checked;
             applyFilter(filterText);
             updateCheckboxStates();
         });
@@ -246,7 +259,19 @@
             const result = { ...node };
             // For files, include if they match the filter
             if (node.type === 'file') {
-                if (node.name.toLowerCase().includes(filterText.toLowerCase())) {
+                let matches = false;
+                if (isRegexMode) {
+                    try {
+                        const regex = new RegExp(filterText, 'i');
+                        matches = regex.test(node.path);
+                    } catch (e) {
+                        // Invalid regex, treat as no match
+                        matches = false;
+                    }
+                } else {
+                    matches = node.name.toLowerCase().includes(filterText.toLowerCase());
+                }
+                if (matches) {
                     return result;
                 }
                 return null; // Skip this file
@@ -330,8 +355,8 @@
                 const nameSpan = document.createElement('span');
                 nameSpan.className = `text-gray-700 ${node.type === 'file' ? 'file-name' : ''}`;
                 nameSpan.setAttribute('data-name', node.name);
-                // Highlight matching text when filtered
-                if (filterText && node.type === 'file') {
+                // Highlight matching text when filtered (only for non-regex mode)
+                if (filterText && node.type === 'file' && !isRegexMode) {
                     highlightMatch(nameSpan, node.name, filterText);
                 } else {
                     nameSpan.textContent = node.name;
@@ -519,10 +544,10 @@
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-           
+          
             // Set base classes
             let toastClasses = 'toast px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-xs';
-           
+          
             // Add type-specific classes
             switch(type) {
                 case 'success':
@@ -534,7 +559,7 @@
                 default:
                     toastClasses += ' bg-blue-500 text-white';
             }
-           
+          
             toast.className = toastClasses;
             toast.innerHTML = `
                 <span>${message}</span>
@@ -544,9 +569,9 @@
                     </svg>
                 </button>
             `;
-           
+          
             container.appendChild(toast);
-           
+          
             // Auto-dismiss after 3 seconds
             setTimeout(() => {
                 toast.classList.add('hide');

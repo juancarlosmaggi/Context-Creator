@@ -146,14 +146,14 @@ def get_project_structure(base_path: Path):
     def build_tree(path: Path, root: Path):
         if should_ignore(path, base_path, git_root, ignore_spec, context_ignore_spec):
             return None
-    
+   
         entry = {
             "path": str(path.relative_to(root)).replace("\\", "/"),
             "name": path.name,
             "type": "directory" if path.is_dir() else "file",
             "children": []
         }
-    
+   
         if path.is_dir():
             try:
                 children = []
@@ -161,7 +161,7 @@ def get_project_structure(base_path: Path):
                     if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
                         continue
                     children.append(child)
-            
+           
                 # Sort directories first, then files, both alphabetically
                 children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
                 if len(children) > 20:
@@ -178,7 +178,7 @@ def get_project_structure(base_path: Path):
                             entry["children"].append(child_entry)
             except (PermissionError, OSError):
                 pass
-            
+           
         return entry
     # Continue with the rest of the function as before
     root_entry = {
@@ -193,7 +193,7 @@ def get_project_structure(base_path: Path):
             if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
                 continue
             children.append(child)
-        
+       
         # Sort directories first, then files, both alphabetically
         children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
@@ -218,8 +218,9 @@ def process_files(selected_paths: list, base_path: Path):
         relative_path = file_path.relative_to(base_path)
         try:
             if file_path.stat().st_size > 10 * 1024 * 1024: # Skip files > 10MB
-                return f"----- BEGIN FILE: {relative_path} -----\n[File too large - {file_path.stat().st_size / 1024 / 1024:.2f} MB]\n----- END FILE -----\n\n"
-        
+                size_mb = file_path.stat().st_size / 1024 / 1024
+                return f"# File\n\n```text\n{relative_path}\n```\n\n# Content\n\n```text\n[File too large - {size_mb:.2f} MB]\n```\n\n"
+       
             # Get file extension for markdown syntax highlighting
             ext = file_path.suffix.lower()
             lang_map = {
@@ -257,15 +258,13 @@ def process_files(selected_paths: list, base_path: Path):
                 '.cfg': 'ini',
                 '.conf': 'ini',
             }
-            lang = lang_map.get(ext, '')
-        
+            lang = lang_map.get(ext, 'text')
+       
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                if lang:
-                    return f"----- BEGIN FILE: {relative_path} -----\n```{lang}\n{content}\n```\n----- END FILE -----\n\n"
-                return f"----- BEGIN FILE: {relative_path} -----\n```\n{content}\n```\n----- END FILE -----\n\n"
+                return f"# File\n\n```text\n{relative_path}\n```\n\n# Content\n\n```{lang}\n{content}\n```\n\n"
         except (UnicodeDecodeError, PermissionError, OSError):
-            return f"----- BEGIN FILE: {relative_path} -----\n[Unable to process file]\n----- END FILE -----\n\n"
+            return f"# File\n\n```text\n{relative_path}\n```\n\n# Content\n\n```text\n[Unable to process file]\n```\n\n"
     all_files = set()
     for path in selected_paths:
         full_path = base_path / path

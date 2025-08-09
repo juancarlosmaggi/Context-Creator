@@ -145,6 +145,10 @@
             if (!string) return string;
             return string.charAt(0).toUpperCase() + string.slice(1);
         }
+        // Function to escape regex special characters
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
         // Fetch project structure
         fetch('/api/project-structure')
             .then(response => {
@@ -324,6 +328,9 @@
                 }
                 const div = document.createElement('div');
                 div.className = `flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
+                if (node.type === 'directory') {
+                    div.classList.add('group');
+                }
                 div.appendChild(checkbox);
                 if (node.type === 'directory') {
                     const toggleButton = document.createElement('button');
@@ -362,6 +369,28 @@
                     nameSpan.textContent = node.name;
                 }
                 div.appendChild(nameSpan);
+                if (node.type === 'directory') {
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'ml-auto flex space-x-2 hidden group-hover:flex';
+                    const filterBtn = document.createElement('button');
+                    filterBtn.type = 'button';
+                    filterBtn.className = 'p-1 text-gray-500 hover:text-blue-500';
+                    filterBtn.title = 'Filter to this folder';
+                    filterBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>';
+                    filterBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const escapedPath = escapeRegex(node.path);
+                        const regexPattern = node.path ? `^${escapedPath}/.*` : '^.*';
+                        fileFilter.value = regexPattern;
+                        regexModeCheckbox.checked = true;
+                        isRegexMode = true;
+                        filterText = regexPattern;
+                        applyFilter(filterText);
+                        updateCheckboxStates();
+                    });
+                    actionsDiv.appendChild(filterBtn);
+                    div.appendChild(actionsDiv);
+                }
                 li.appendChild(div);
                 if (node.type === 'directory') {
                     const childUl = document.createElement('ul');

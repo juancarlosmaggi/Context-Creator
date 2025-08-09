@@ -26,7 +26,7 @@ class IndexStatus:
     is_valid = False
     structure = None
     created_at = None
-  
+ 
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
@@ -41,7 +41,7 @@ def find_git_root(path: Path) -> Union[Path, None]: # Instead of Path | None
 def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
     """Parse all .gitignore files in the repository into a PathSpec."""
     patterns = []
-  
+ 
     # First process the root .gitignore
     root_gitignore = git_root / ".gitignore"
     if root_gitignore.exists():
@@ -51,7 +51,7 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
                 patterns.extend(lines)
         except FileNotFoundError:
             pass
-  
+ 
     # Then process all other .gitignore files
     for gitignore_path in git_root.glob("*/**/.gitignore"): # Skip root .gitignore we processed above
         relative_dir = gitignore_path.parent.relative_to(git_root)
@@ -88,7 +88,7 @@ def should_ignore(path: Path, base_path: Path, git_root: Union[Path, None], igno
     # Always ignore hidden files/dirs
     if path.name.startswith("."):
         return True
-  
+ 
     # Check against gitignore patterns
     if git_root and ignore_spec and path.is_relative_to(git_root):
         rel_path = path.relative_to(git_root)
@@ -97,7 +97,7 @@ def should_ignore(path: Path, base_path: Path, git_root: Union[Path, None], igno
             return True
         if path.is_dir() and ignore_spec.match_file(str(rel_path) + '/'):
             return True
-  
+ 
     # Check against contextignore patterns
     if context_ignore_spec and path.is_relative_to(base_path):
         rel_path = path.relative_to(base_path)
@@ -105,7 +105,7 @@ def should_ignore(path: Path, base_path: Path, git_root: Union[Path, None], igno
             return True
         if path.is_dir() and context_ignore_spec.match_file(str(rel_path) + '/'):
             return True
-  
+ 
     return False
 # Add a debugging function to test gitignore patterns
 @app.get("/api/test-gitignore/{path:path}")
@@ -115,19 +115,19 @@ async def test_gitignore(path: str):
     git_root = find_git_root(base_path)
     if not git_root:
         return {"error": "No git repository found"}
-  
+ 
     ignore_spec = parse_gitignore(git_root)
     context_ignore_spec = parse_contextignore(base_path)
     test_path = Path(path)
     full_path = base_path / test_path
-  
+ 
     result = {
         "path": path,
         "is_ignored": should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec),
         "exists": full_path.exists(),
         "is_dir": full_path.is_dir() if full_path.exists() else None,
     }
-  
+ 
     # Show which patterns would match this path from gitignore
     git_pattern_matches = []
     if git_root and full_path.is_relative_to(git_root):
@@ -136,7 +136,7 @@ async def test_gitignore(path: str):
             if pattern.match_file(rel_path) or pattern.match_file(str(rel_path) + '/'):
                 git_pattern_matches.append(str(pattern))
     result["git_matching_patterns"] = git_pattern_matches
-  
+ 
     # Show which patterns would match this path from contextignore
     context_pattern_matches = []
     if full_path.is_relative_to(base_path):
@@ -145,7 +145,7 @@ async def test_gitignore(path: str):
             if pattern.match_file(rel_path) or pattern.match_file(str(rel_path) + '/'):
                 context_pattern_matches.append(str(pattern))
     result["context_matching_patterns"] = context_pattern_matches
-  
+ 
     return result
 # Update the get_project_structure function to use our improved should_ignore function
 @functools.lru_cache(maxsize=32)
@@ -154,18 +154,18 @@ def get_project_structure(base_path: Path):
     git_root = find_git_root(base_path)
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
-  
+ 
     def build_tree(path: Path, root: Path):
         if should_ignore(path, base_path, git_root, ignore_spec, context_ignore_spec):
             return None
-      
+     
         entry = {
             "path": str(path.relative_to(root)),
             "name": path.name,
             "type": "directory" if path.is_dir() else "file",
             "children": []
         }
-      
+     
         if path.is_dir():
             try:
                 children = []
@@ -173,7 +173,7 @@ def get_project_structure(base_path: Path):
                     if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
                         continue
                     children.append(child)
-              
+             
                 # Sort directories first, then files, both alphabetically
                 children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
                 if len(children) > 20:
@@ -190,9 +190,9 @@ def get_project_structure(base_path: Path):
                             entry["children"].append(child_entry)
             except (PermissionError, OSError):
                 pass
-              
+             
         return entry
-  
+ 
     # Continue with the rest of the function as before
     root_entry = {
         "path": "",
@@ -200,14 +200,14 @@ def get_project_structure(base_path: Path):
         "type": "directory",
         "children": []
     }
-  
+ 
     try:
         children = []
         for child in base_path.iterdir():
             if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
                 continue
             children.append(child)
-          
+         
         # Sort directories first, then files, both alphabetically
         children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
@@ -221,21 +221,22 @@ def get_project_structure(base_path: Path):
                     continue
     except (PermissionError, OSError):
         pass
-  
+ 
     return root_entry
 def process_files(selected_paths: list, base_path: Path):
     """Process selected files and directories into a single text output."""
     git_root = find_git_root(base_path)
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
-  
+ 
     output = []
-  
+ 
     def process_file(file_path: Path):
+        relative_path = file_path.relative_to(base_path)
         try:
             if file_path.stat().st_size > 10 * 1024 * 1024: # Skip files > 10MB
-                return f"# File: {file_path.relative_to(base_path)}\n# [File too large - {file_path.stat().st_size / 1024 / 1024:.2f} MB]\n\n"
-          
+                return f"----- BEGIN FILE: {relative_path} -----\n[File too large - {file_path.stat().st_size / 1024 / 1024:.2f} MB]\n----- END FILE -----\n\n"
+         
             # Get file extension for markdown syntax highlighting
             ext = file_path.suffix.lower()
             lang_map = {
@@ -274,16 +275,15 @@ def process_files(selected_paths: list, base_path: Path):
                 '.conf': 'ini',
             }
             lang = lang_map.get(ext, '')
-          
+         
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                relative_path = file_path.relative_to(base_path)
                 if lang:
-                    return f"# File: {relative_path}\n```{lang}\n{content}\n```\n\n"
-                return f"# File: {relative_path}\n```\n{content}\n```\n\n"
+                    return f"----- BEGIN FILE: {relative_path} -----\n```{lang}\n{content}\n```\n----- END FILE -----\n\n"
+                return f"----- BEGIN FILE: {relative_path} -----\n```\n{content}\n```\n----- END FILE -----\n\n"
         except (UnicodeDecodeError, PermissionError, OSError):
-            return f"# File: {file_path.relative_to(base_path)}\n# [Unable to process file]\n\n"
-  
+            return f"----- BEGIN FILE: {relative_path} -----\n[Unable to process file]\n----- END FILE -----\n\n"
+ 
     all_files = set()
     for path in selected_paths:
         full_path = base_path / path
@@ -294,12 +294,12 @@ def process_files(selected_paths: list, base_path: Path):
             for f in full_path.rglob("*"):
                 if f.is_file() and not should_ignore(f, base_path, git_root, ignore_spec, context_ignore_spec):
                     all_files.add(f)
-  
+ 
     all_files = sorted(all_files, key=lambda f: str(f.relative_to(base_path)))
-  
+ 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, os.cpu_count() * 4)) as executor:
         results = list(executor.map(process_file, all_files))
-  
+ 
     return "".join(results)
 async def build_and_save_index(base_path: Path):
     """Build and store the project structure in memory."""
@@ -314,13 +314,13 @@ async def build_and_save_index(base_path: Path):
 async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks):
     """Get the in-memory index or trigger a rebuild if necessary."""
     index_status = IndexStatus()
-  
+ 
     # If index is already valid and not too old (24 hours), don't rebuild
     if index_status.is_valid and index_status.created_at:
         age = datetime.now() - index_status.created_at
         if age.total_seconds() <= 24 * 3600:
             return None
-  
+ 
     # If not already building, start the build process
     if not index_status.is_building:
         index_status.is_building = True
@@ -331,13 +331,13 @@ async def index(request: Request, background_tasks: BackgroundTasks):
     """Serve the index page, triggering index build if necessary."""
     base_path = Path.cwd()
     index_status = IndexStatus()
-  
+ 
     # If index is valid and recent enough, serve the main page
     if index_status.is_valid and index_status.created_at:
         age = datetime.now() - index_status.created_at
         if age.total_seconds() <= 24 * 3600:
             return templates.TemplateResponse("index.html", {"request": request})
-  
+ 
     # Otherwise, trigger a build and show the loading page
     await get_or_build_index(base_path, background_tasks)
     return templates.TemplateResponse("loading.html", {"request": request})

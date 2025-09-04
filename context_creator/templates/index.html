@@ -168,6 +168,7 @@
                 projectStructure = removeEmptyDirectories(projectStructure);
                 filteredStructure = projectStructure; // Initially, filtered = full structure
                 renderStructure(filteredStructure.children, document.getElementById('project-structure'));
+                loadSelections();
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -461,6 +462,7 @@
             });
             updateCheckboxStates();
             updateSelectionCounter();
+            saveSelections();
         });
         // Deselect all visible files
         document.getElementById('deselect-all').addEventListener('click', () => {
@@ -469,6 +471,7 @@
             });
             updateCheckboxStates();
             updateSelectionCounter();
+            saveSelections();
         });
         // Get all descendant files of a node
         function getAllDescendantFiles(node) {
@@ -515,6 +518,7 @@
             }
             updateCheckboxStates();
             updateSelectionCounter();
+            saveSelections();
         }
         // Update selection counter
         function updateSelectionCounter() {
@@ -573,10 +577,10 @@
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-          
+         
             // Set base classes
             let toastClasses = 'toast px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-xs';
-          
+         
             // Add type-specific classes
             switch(type) {
                 case 'success':
@@ -588,7 +592,7 @@
                 default:
                     toastClasses += ' bg-blue-500 text-white';
             }
-          
+         
             toast.className = toastClasses;
             toast.innerHTML = `
                 <span>${message}</span>
@@ -598,14 +602,41 @@
                     </svg>
                 </button>
             `;
-          
+         
             container.appendChild(toast);
-          
+         
             // Auto-dismiss after 3 seconds
             setTimeout(() => {
                 toast.classList.add('hide');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
+        }
+        // Load persisted selections from localStorage (best effort)
+        function loadSelections() {
+            if (!projectName) return;
+            const key = `contextCreatorSelectedPaths_${projectName}`;
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                try {
+                    const paths = JSON.parse(saved);
+                    paths.forEach(path => {
+                        const node = findNodeByPath(projectStructure, path);
+                        if (node && node.type === 'file') {
+                            selectedPaths.add(path);
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to load selections:', e);
+                }
+            }
+            updateCheckboxStates();
+            updateSelectionCounter();
+        }
+        // Save selections to localStorage
+        function saveSelections() {
+            if (!projectName) return;
+            const key = `contextCreatorSelectedPaths_${projectName}`;
+            localStorage.setItem(key, JSON.stringify(Array.from(selectedPaths)));
         }
         // Intercept form submission to send all selected paths
         const processForm = document.getElementById('process-form');

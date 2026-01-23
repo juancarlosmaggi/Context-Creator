@@ -22,3 +22,12 @@ def test_process_route(client):
     response = client.post("/process/", data={"selected_paths": ["README.md"]})
     assert response.status_code == 200
     assert "README.md" in response.text
+
+def test_gitignore_endpoint(client):
+    # Testing that it doesn't crash and returns valid json
+    response = client.get("/api/test-gitignore/README.md")
+    assert response.status_code == 200
+    data = response.json()
+    assert "path" in data
+    assert "is_ignored" in data
+    assert "git_matching_patterns" in data

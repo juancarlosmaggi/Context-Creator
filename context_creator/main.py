@@ -38,11 +38,11 @@ CACHE_DIR.mkdir(exist_ok=True)
 async def test_gitignore(path: str):
     """Test if a specific path would be ignored by gitignore rules."""
     base_path = Path.cwd()
-    git_root = find_git_root(base_path)
+    git_root = await run_in_threadpool(find_git_root, base_path)
     if not git_root:
         return {"error": "No git repository found"}
-    ignore_spec = parse_gitignore(git_root)
-    context_ignore_spec = parse_contextignore(base_path)
+    ignore_spec = await run_in_threadpool(parse_gitignore, git_root)
+    context_ignore_spec = await run_in_threadpool(parse_contextignore, base_path)
 
     test_path = Path(path)
     full_path = base_path / test_path
@@ -60,7 +60,7 @@ async def test_gitignore(path: str):
         rel_path = full_path.relative_to(git_root)
         if ignore_spec:
             for pattern in ignore_spec.patterns:
-                if pattern.match_file(rel_path) or pattern.match_file(str(rel_path) + '/'):
+                if pattern.match_file(str(rel_path)) or pattern.match_file(str(rel_path) + '/'):
                     git_pattern_matches.append(str(pattern))
     result["git_matching_patterns"] = git_pattern_matches
 
@@ -70,7 +70,7 @@ async def test_gitignore(path: str):
         rel_path = full_path.relative_to(base_path)
         if context_ignore_spec:
             for pattern in context_ignore_spec.patterns:
-                if pattern.match_file(rel_path) or pattern.match_file(str(rel_path) + '/'):
+                if pattern.match_file(str(rel_path)) or pattern.match_file(str(rel_path) + '/'):
                     context_pattern_matches.append(str(pattern))
     result["context_matching_patterns"] = context_pattern_matches
 

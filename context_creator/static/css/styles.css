@@ -1,0 +1,105 @@
+/* General Styles */
+.toggle svg.rotate-90 {
+    transform: rotate(90deg);
+}
+
+/* Floating Action Button Styles */
+.floating-button {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    z-index: 100;
+}
+
+.floating-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* Selection Counter Badge */
+.selection-counter {
+    position: fixed;
+    bottom: 6rem;
+    right: 2rem;
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    z-index: 100;
+    display: none;
+    /* Hidden by default */
+}
+
+.selection-counter.visible {
+    display: flex;
+}
+
+/* Disabled button style */
+.floating-button:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Hide files not matching filter */
+.file-item.filtered {
+    display: none;
+}
+
+/* Highlight matching text */
+.highlight {
+    background-color: #FFFF00;
+    font-weight: bold;
+}
+
+/* Hide folders without matching descendants */
+.dir-item.filtered {
+    display: none;
+}
+
+/* Toast animation */
+@keyframes toast-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-out {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+.toast {
+    animation: toast-in 0.3s ease-out forwards;
+    z-index: 9999;
+    position: relative;
+}
+
+.toast.hide {
+    animation: toast-out 0.3s ease-in forwards;
+}
+
+/* Loader Styles */
+.loader {
+    border-top-color: #3B82F6;
+    -webkit-animation: spinner 1.5s linear infinite;
+    animation: spinner 1.5s linear infinite;
+}
+
+@keyframes spinner {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

@@ -1,0 +1,152 @@
+from typing import Dict, List, Optional, Any, Union
+from pathlib import Path
+from datetime import datetime
+import functools
+import concurrent.futures
+from fastapi import BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
+
+from context_creator.core.ignore import (
+    find_git_root,
+    parse_gitignore,
+    parse_contextignore,
+    should_ignore
+)
+
+class IndexStatus:
+    """Singleton class to store the project index status."""
+    _instance = None
+    is_building: bool = False
+    is_valid: bool = False
+    structure: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+    def __new__(cls):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+@functools.lru_cache(maxsize=32)
+def get_project_structure(base_path: Path) -> Dict[str, Any]:
+    """
+    Build the project structure tree, respecting .gitignore rules.
+
+    Args:
+        base_path: The root directory to scan.
+
+    Returns:
+        A dictionary representing the project structure.
+    """
+    git_root = find_git_root(base_path)
+    ignore_spec = parse_gitignore(git_root) if git_root else None
+    context_ignore_spec = parse_contextignore(base_path)
+
+    def build_tree(path: Path, root: Path) -> Optional[Dict[str, Any]]:
+        if should_ignore(path, base_path, git_root, ignore_spec, context_ignore_spec):
+            return None
+
+        entry = {
+            "path": str(path.relative_to(root)).replace("\\", "/"),
+            "name": path.name,
+            "type": "directory" if path.is_dir() else "file",
+            "children": []
+        }
+
+        if path.is_dir():
+            try:
+                children = []
+                for child in path.iterdir():
+                    if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
+                        continue
+                    children.append(child)
+
+                # Sort directories first, then files, both alphabetically
+                children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
+
+                # Use threads for large directories
+                if len(children) > 20:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                        futures = {executor.submit(build_tree, child, root): child for child in children}
+                        for future in concurrent.futures.as_completed(futures):
+                            try:
+                                child_entry = future.result()
+                                if child_entry:
+                                    entry["children"].append(child_entry)
+                            except Exception:
+                                pass
+                else:
+                    for child in children:
+                        child_entry = build_tree(child, root)
+                        if child_entry:
+                            entry["children"].append(child_entry)
+            except (PermissionError, OSError):
+                pass
+
+        return entry
+
+    root_entry = {
+        "path": "",
+        "name": base_path.name,
+        "type": "directory",
+        "children": []
+    }
+
+    try:
+        children = []
+        for child in base_path.iterdir():
+            if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
+                continue
+            children.append(child)
+
+        children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(build_tree, child, base_path): child for child in children}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    child_entry = future.result()
+                    if child_entry:
+                        root_entry["children"].append(child_entry)
+                except Exception:
+                    continue
+    except (PermissionError, OSError):
+        pass
+
+    return root_entry
+
+async def build_and_save_index(base_path: Path) -> None:
+    """
+    Build and store the project structure in memory.
+
+    Args:
+        base_path: The root directory to scan.
+    """
+    index_status = IndexStatus()
+    try:
+        structure = await run_in_threadpool(get_project_structure, base_path)
+        index_status.structure = structure
+        index_status.created_at = datetime.now()
+        index_status.is_valid = True
+    finally:
+        index_status.is_building = False
+
+async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks) -> None:
+    """
+    Get the in-memory index or trigger a rebuild if necessary.
+
+    Args:
+        base_path: The root directory.
+        background_tasks: FastAPI BackgroundTasks object to schedule rebuild.
+    """
+    index_status = IndexStatus()
+    # If index is already valid and not too old (24 hours), don't rebuild
+    if index_status.is_valid and index_status.created_at:
+        age = datetime.now() - index_status.created_at
+        if age.total_seconds() <= 24 * 3600:
+            return None
+
+    # If not already building, start the build process
+    if not index_status.is_building:
+        index_status.is_building = True
+        background_tasks.add_task(build_and_save_index, base_path)
+    return None

@@ -17,6 +17,12 @@ dependencies = [
     "pathspec",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+]
+
 [project.scripts]
 context-creator = "context_creator.cli:main"
 

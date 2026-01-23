@@ -1,8 +1,5 @@
-import os
-import sys
 import uvicorn
 import argparse
-from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(description="Context Creator")
@@ -10,9 +7,6 @@ def main():
     parser.add_argument("--port", default=8000, type=int, help="Port to bind the server to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     args = parser.parse_args()
-    
-    # Store the current working directory
-    cwd = os.getcwd()
     
     # Run uvicorn with the properly qualified module path
     uvicorn.run(

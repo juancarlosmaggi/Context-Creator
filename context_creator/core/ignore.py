@@ -1,5 +1,6 @@
 from typing import Union, Optional, List
 from pathlib import Path
+from functools import lru_cache
 import pathspec
 
 def find_git_root(path: Path) -> Optional[Path]:
@@ -23,6 +24,7 @@ def find_git_root(path: Path) -> Optional[Path]:
     except Exception:
         return None
 
+@lru_cache()
 def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
     """
     Parse all .gitignore files in the repository into a PathSpec.

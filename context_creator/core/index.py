@@ -63,22 +63,10 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 # Sort directories first, then files, both alphabetically
                 children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
 
-                # Use threads for large directories
-                if len(children) > 20:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                        futures = {executor.submit(build_tree, child, root): child for child in children}
-                        for future in concurrent.futures.as_completed(futures):
-                            try:
-                                child_entry = future.result()
-                                if child_entry:
-                                    entry["children"].append(child_entry)
-                            except Exception:
-                                pass
-                else:
-                    for child in children:
-                        child_entry = build_tree(child, root)
-                        if child_entry:
-                            entry["children"].append(child_entry)
+                for child in children:
+                    child_entry = build_tree(child, root)
+                    if child_entry:
+                        entry["children"].append(child_entry)
             except (PermissionError, OSError):
                 pass
 

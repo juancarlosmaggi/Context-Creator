@@ -1,236 +1,183 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let projectStructure;
-    let filteredStructure;
-    const selectedPaths = new Set();
-    let filterText = '';
-    let projectName = '';
-    let isRegexMode = false;
+    new ProjectExplorer();
+});
 
-    // Function to capitalize first letter of a string
-    function capitalizeFirstLetter(string) {
-        if (!string) return string;
-        return string.charAt(0).toUpperCase() + string.slice(1);
+class ProjectExplorer {
+    constructor() {
+        this.projectStructure = null;
+        this.filteredStructure = null;
+        this.selectedPaths = new Set();
+        this.filterText = '';
+        this.projectName = '';
+        this.isRegexMode = false;
+
+        this.elements = {
+            projectStructure: document.getElementById('project-structure'),
+            fileFilter: document.getElementById('file-filter'),
+            regexModeCheckbox: document.getElementById('regex-mode'),
+            clearFilterBtn: document.getElementById('clear-filter'),
+            expandAllBtn: document.getElementById('expand-all'),
+            collapseAllBtn: document.getElementById('collapse-all'),
+            selectAllBtn: document.getElementById('select-all'),
+            deselectAllBtn: document.getElementById('deselect-all'),
+            refreshIndexBtn: document.getElementById('refresh-index'),
+            processForm: document.getElementById('process-form'),
+            processBtn: document.getElementById('process-button'),
+            selectedCount: document.getElementById('selected-count'),
+            selectionCounter: document.getElementById('selection-counter'),
+            toastContainer: document.getElementById('toast-container'),
+            projectHeading: document.getElementById('project-heading')
+        };
+
+        this.init();
     }
 
-    // Function to escape regex special characters
-    function escapeRegex(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    init() {
+        this.bindEvents();
+        this.fetchStructure();
     }
 
-    // Fetch project structure
-    fetch('/api/project-structure')
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to fetch structure');
-            return response.json();
-        })
-        .then(data => {
-            projectStructure = data;
-            // Get project name from root directory
-            if (projectStructure && projectStructure.name) {
-                projectName = capitalizeFirstLetter(projectStructure.name);
-                // Update title and heading with project name
-                document.title = `Project Explorer - ${projectName}`;
-                const projectHeading = document.getElementById('project-heading');
-                if (projectHeading) projectHeading.textContent = `Project Explorer - ${projectName}`;
+    bindEvents() {
+        // Event delegation for checkbox changes
+        this.elements.projectStructure.addEventListener('change', (event) => {
+            if (event.target.type === 'checkbox') {
+                this.handleCheckboxChange(event.target);
             }
-            // Process the structure to remove empty directories
-            projectStructure = removeEmptyDirectories(projectStructure);
-            filteredStructure = projectStructure; // Initially, filtered = full structure
-            renderStructure(filteredStructure.children, document.getElementById('project-structure'));
-            loadSelections();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById('project-structure').innerHTML = '<li class="text-red-500">Error loading project structure</li>';
         });
 
-    // Function to remove empty directories recursively
-    function removeEmptyDirectories(node) {
-        // For non-directories, return as is
-        if (node.type !== 'directory') return node;
-        // Skip the root folder even if empty
-        if (!node.parent) {
-            if (node.children && node.children.length > 0) {
-                // Process children recursively
-                node.children = node.children
-                    .map(removeEmptyDirectories)
-                    .filter(child => child !== null);
-            }
-            return node;
-        }
-        // Process children recursively
-        if (node.children && node.children.length > 0) {
-            node.children = node.children
-                .map(removeEmptyDirectories)
-                .filter(child => child !== null);
-            // If after processing, this directory has no children, return null
-            if (node.children.length === 0) {
-                return null;
-            }
-        } else {
-            // If directory has no children initially, return null
-            return null;
-        }
-        return node;
+        // Filter events
+        this.elements.fileFilter.addEventListener('input', () => {
+            this.filterText = this.elements.fileFilter.value.trim();
+            this.applyFilter();
+        });
+
+        this.elements.regexModeCheckbox.addEventListener('change', () => {
+            this.isRegexMode = this.elements.regexModeCheckbox.checked;
+            this.applyFilter();
+        });
+
+        this.elements.clearFilterBtn.addEventListener('click', () => {
+            this.elements.fileFilter.value = '';
+            this.filterText = '';
+            this.applyFilter();
+        });
+
+        // Toolbar events
+        this.elements.expandAllBtn.addEventListener('click', () => this.expandAll());
+        this.elements.collapseAllBtn.addEventListener('click', () => this.collapseAll());
+        this.elements.selectAllBtn.addEventListener('click', () => this.selectAll());
+        this.elements.deselectAllBtn.addEventListener('click', () => this.deselectAll());
+        this.elements.refreshIndexBtn.addEventListener('click', () => this.refreshIndex());
+
+        // Process form
+        this.elements.processForm.addEventListener('submit', (e) => this.handleProcess(e));
     }
 
-    // Event delegation for checkbox changes
-    document.getElementById('project-structure').addEventListener('change', (event) => {
-        if (event.target.type === 'checkbox') {
-            handleCheckboxChange(event.target);
-        }
-    });
+    fetchStructure() {
+        fetch('/api/project-structure')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch structure');
+                return response.json();
+            })
+            .then(data => {
+                this.projectStructure = data;
+                if (this.projectStructure && this.projectStructure.name) {
+                    this.projectName = this.capitalizeFirstLetter(this.projectStructure.name);
+                    document.title = `Project Explorer - ${this.projectName}`;
+                    if (this.elements.projectHeading) {
+                        this.elements.projectHeading.textContent = `Project Explorer - ${this.projectName}`;
+                    }
+                }
+                this.projectStructure = this.removeEmptyDirectories(this.projectStructure);
+                this.filteredStructure = this.projectStructure;
+                this.render();
+                this.loadSelections();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                this.elements.projectStructure.innerHTML = '<li class="text-red-500">Error loading project structure</li>';
+            });
+    }
 
-    // File filter functionality
-    const fileFilter = document.getElementById('file-filter');
-    const clearFilterBtn = document.getElementById('clear-filter');
-    const regexModeCheckbox = document.getElementById('regex-mode');
-
-    fileFilter.addEventListener('input', () => {
-        filterText = fileFilter.value.trim();
-        applyFilter(filterText);
-        updateCheckboxStates();
-    });
-
-    regexModeCheckbox.addEventListener('change', () => {
-        isRegexMode = regexModeCheckbox.checked;
-        applyFilter(filterText);
-        updateCheckboxStates();
-    });
-
-    clearFilterBtn.addEventListener('click', () => {
-        fileFilter.value = '';
-        filterText = '';
-        applyFilter('');
-        updateCheckboxStates();
-    });
-
-    // Apply filter to file structure
-    function applyFilter(filterText) {
-        if (!projectStructure) return;
-        // Clear the current render
-        const container = document.getElementById('project-structure');
+    render(isFiltered = false) {
+        const container = this.elements.projectStructure;
         container.innerHTML = '';
-        // Reset filter info
+
+        // Remove existing filter info if any
         const existingInfo = document.getElementById('filter-info');
         if (existingInfo) existingInfo.remove();
-        if (filterText === '') {
-            // When filter is empty, use the original structure
-            filteredStructure = projectStructure;
-            renderStructure(filteredStructure.children, container);
-            return;
+
+        if (!this.filteredStructure || !this.filteredStructure.children || this.filteredStructure.children.length === 0) {
+             if (this.filterText) {
+                const info = document.createElement('div');
+                info.id = 'filter-info';
+                info.className = 'text-gray-500 mt-4 text-center';
+                info.textContent = 'No files match the filter';
+                container.appendChild(info);
+             }
+             return;
         }
-        // Create a filtered version of the structure
-        filteredStructure = createFilteredStructure(projectStructure, filterText);
-        // Render the filtered structure
-        if (filteredStructure.children && filteredStructure.children.length > 0) {
-            renderStructure(filteredStructure.children, container, true);
-        } else {
-            // Show no results message
-            const info = document.createElement('div');
-            info.id = 'filter-info';
-            info.className = 'text-gray-500 mt-4 text-center';
-            info.textContent = 'No files match the filter';
-            container.appendChild(info);
-        }
+
+        this.renderNodes(this.filteredStructure.children, container, isFiltered);
+        this.updateCheckboxStates();
     }
 
-    // Create a filtered structure based on the filter text
-    function createFilteredStructure(node, filterText) {
-        // Create a shallow copy of the node
-        const result = { ...node };
-        // For files, include if they match the filter
-        if (node.type === 'file') {
-            let matches = false;
-            if (isRegexMode) {
-                try {
-                    const regex = new RegExp(filterText, 'i');
-                    matches = regex.test(node.path);
-                } catch (e) {
-                    // Invalid regex, treat as no match
-                    matches = false;
-                }
-            } else {
-                matches = node.name.toLowerCase().includes(filterText.toLowerCase());
-            }
-            if (matches) {
-                return result;
-            }
-            return null; // Skip this file
-        }
-        // For directories, filter their children and preserve the original children reference
-        if (node.type === 'directory' && node.children) {
-            // Deep copy children array but shallow copy each child
-            result.children = node.children
-                .map(child => createFilteredStructure(child, filterText))
-                .filter(child => child !== null);
-            // Only include directories that have matching children
-            if (result.children.length > 0) {
-                return result;
-            }
-            return null; // Skip empty directories
-        }
-        return result;
-    }
-
-    // Render the project structure
-    function renderStructure(nodes, container, isFiltered = false) {
+    renderNodes(nodes, container, isFiltered) {
         if (!nodes || nodes.length === 0) return;
-        // Sort directories first, then files, both alphabetically
+
+        // Sort directories first, then files
         nodes.sort((a, b) => {
-            // If types are different, directories come first
             if (a.type !== b.type) {
                 return a.type === 'directory' ? -1 : 1;
             }
-            // If types are the same, sort alphabetically
             return a.name.localeCompare(b.name);
         });
+
         nodes.forEach(node => {
-            // Skip rendering empty directories
             if (node.type === 'directory' && (!node.children || node.children.length === 0)) {
                 return;
             }
+
             const li = document.createElement('li');
+            li.className = 'select-none'; // Prevent text selection while clicking
+
+            const div = document.createElement('div');
+            div.className = `flex items-center hover:bg-gray-100 rounded-md px-2 py-1 transition-colors group cursor-pointer ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
+
+            // Checkbox
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = node.path;
-            checkbox.className = 'mr-2';
-            if (node.type === 'file') {
-                checkbox.name = 'selected_paths';
-                checkbox.checked = selectedPaths.has(node.path);
-            } else {
-                // For directories, no name attribute to avoid submitting directory paths
-                const allSelected = isAllDescendantsSelected(node);
-                const someSelected = isSomeDescendantsSelected(node);
-                checkbox.indeterminate = someSelected && !allSelected;
-                checkbox.checked = allSelected;
-            }
-            const div = document.createElement('div');
-            div.className = `flex items-center hover:bg-gray-100 rounded-lg p-2 transition-colors ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
-            if (node.type === 'directory') {
-                div.classList.add('group');
-            }
+            checkbox.className = 'mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
+            // Stop propagation on checkbox click to prevent triggering row click
+            checkbox.addEventListener('click', (e) => e.stopPropagation());
+
             div.appendChild(checkbox);
+
+            // Toggle Icon / Spacer
             if (node.type === 'directory') {
-                const toggleButton = document.createElement('button');
-                toggleButton.type = 'button';
-                toggleButton.className = 'toggle mr-2 text-gray-400 hover:text-gray-600';
+                const toggleButton = document.createElement('div'); // Changed to div to avoid button nesting issues if any
+                toggleButton.className = 'toggle mr-2 text-gray-400 hover:text-gray-600 cursor-pointer transform transition-transform duration-200';
+                if (isFiltered) toggleButton.classList.add('rotate-90');
                 toggleButton.innerHTML = `
-                    <svg class="w-5 h-5 transition-transform${isFiltered ? ' rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 `;
                 div.appendChild(toggleButton);
+
+                // Folder Icon
                 div.innerHTML += `
-                    <span class="mr-2 text-gray-500">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    <span class="mr-2 text-yellow-500">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                         </svg>
                     </span>
                 `;
             } else {
+                // Spacer for file indentation matching folder icon + toggle
                 div.innerHTML += `
-                    <span class="w-7 mr-2"></span>
+                    <span class="w-6 mr-2"></span>
                     <span class="mr-2 text-gray-400">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -238,68 +185,363 @@ document.addEventListener('DOMContentLoaded', () => {
                     </span>
                 `;
             }
+
+            // Name
             const nameSpan = document.createElement('span');
-            nameSpan.className = `text-gray-700 ${node.type === 'file' ? 'file-name' : ''}`;
-            nameSpan.setAttribute('data-name', node.name);
-            // Highlight matching text when filtered (only for non-regex mode)
-            if (filterText && node.type === 'file' && !isRegexMode) {
-                highlightMatch(nameSpan, node.name, filterText);
+            nameSpan.className = `text-gray-700 text-sm ${node.type === 'file' ? 'file-name' : 'font-medium'}`;
+            if (this.filterText && node.type === 'file' && !this.isRegexMode) {
+                this.highlightMatch(nameSpan, node.name, this.filterText);
             } else {
                 nameSpan.textContent = node.name;
             }
             div.appendChild(nameSpan);
+
+            // Filter Action for Directory
             if (node.type === 'directory') {
                 const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'ml-auto flex space-x-2 hidden group-hover:flex';
+                actionsDiv.className = 'ml-auto opacity-0 group-hover:opacity-100 transition-opacity';
                 const filterBtn = document.createElement('button');
                 filterBtn.type = 'button';
-                filterBtn.className = 'p-1 text-gray-500 hover:text-blue-500';
+                filterBtn.className = 'p-1 text-gray-400 hover:text-blue-500 rounded';
                 filterBtn.title = 'Filter to this folder';
                 filterBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>';
                 filterBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const escapedPath = escapeRegex(node.path);
-                    const regexPattern = node.path ? `^${escapedPath}/.*` : '^.*';
-                    fileFilter.value = regexPattern;
-                    regexModeCheckbox.checked = true;
-                    isRegexMode = true;
-                    filterText = regexPattern;
-                    applyFilter(filterText);
-                    updateCheckboxStates();
+                    this.filterToDirectory(node.path);
                 });
                 actionsDiv.appendChild(filterBtn);
                 div.appendChild(actionsDiv);
             }
+
             li.appendChild(div);
+
+            // Children Container
             if (node.type === 'directory') {
                 const childUl = document.createElement('ul');
-                childUl.className = `pl-6 space-y-2 ${isFiltered ? '' : 'hidden'}`;
+                childUl.className = `pl-6 space-y-0.5 border-l border-gray-200 ml-2.5 ${isFiltered ? '' : 'hidden'}`;
                 li.appendChild(childUl);
-                // If we're showing filtered results, pre-render all children
+
                 if (isFiltered && node.children && node.children.length > 0) {
-                    renderStructure(node.children, childUl, isFiltered);
+                    this.renderNodes(node.children, childUl, isFiltered);
                 }
-                const toggleButton = div.querySelector('.toggle');
-                toggleButton.addEventListener('click', () => {
+
+                // Toggle logic
+                const toggleHandler = (e) => {
+                    // Don't toggle if clicking checkbox or action button (handled separately)
+                    if (e.target.type === 'checkbox' || e.target.closest('button')) return;
+
                     if (childUl.classList.contains('hidden')) {
                         if (!childUl.hasChildNodes() && node.children) {
-                            renderStructure(node.children, childUl);
-                            updateCheckboxStates();
+                            this.renderNodes(node.children, childUl);
+                            this.updateCheckboxStates();
                         }
                         childUl.classList.remove('hidden');
-                        toggleButton.querySelector('svg').classList.add('rotate-90');
+                        div.querySelector('.toggle').classList.add('rotate-90');
                     } else {
                         childUl.classList.add('hidden');
-                        toggleButton.querySelector('svg').classList.remove('rotate-90');
+                        div.querySelector('.toggle').classList.remove('rotate-90');
                     }
+                };
+
+                div.addEventListener('click', toggleHandler);
+            } else {
+                // Clicking file row toggles checkbox
+                div.addEventListener('click', () => {
+                   checkbox.checked = !checkbox.checked;
+                   this.handleCheckboxChange(checkbox);
                 });
             }
+
             container.appendChild(li);
         });
     }
 
-    // Highlight matching text in an element
-    function highlightMatch(element, text, filterText) {
+    applyFilter() {
+        if (!this.projectStructure) return;
+
+        if (this.filterText === '') {
+            this.filteredStructure = this.projectStructure;
+            this.render(false);
+        } else {
+            this.filteredStructure = this.createFilteredStructure(this.projectStructure, this.filterText);
+            this.render(true);
+        }
+    }
+
+    createFilteredStructure(node, filterText) {
+        const result = { ...node };
+        if (node.type === 'file') {
+            let matches = false;
+            if (this.isRegexMode) {
+                try {
+                    const regex = new RegExp(filterText, 'i');
+                    matches = regex.test(node.path);
+                } catch (e) {
+                    matches = false;
+                }
+            } else {
+                matches = node.name.toLowerCase().includes(filterText.toLowerCase());
+            }
+            return matches ? result : null;
+        }
+
+        if (node.type === 'directory' && node.children) {
+            result.children = node.children
+                .map(child => this.createFilteredStructure(child, filterText))
+                .filter(child => child !== null);
+            return result.children.length > 0 ? result : null;
+        }
+        return result;
+    }
+
+    removeEmptyDirectories(node) {
+        if (node.type !== 'directory') return node;
+        if (!node.parent && node.children) { // Root
+             node.children = node.children.map(c => this.removeEmptyDirectories(c)).filter(c => c !== null);
+             return node;
+        }
+        if (node.children && node.children.length > 0) {
+             node.children = node.children.map(c => this.removeEmptyDirectories(c)).filter(c => c !== null);
+             if (node.children.length === 0) return null;
+        } else {
+            return null;
+        }
+        return node;
+    }
+
+    handleCheckboxChange(checkbox) {
+        const path = checkbox.value;
+        const currentStructure = this.filterText ? this.filteredStructure : this.projectStructure;
+        const node = this.findNodeByPath(currentStructure, path);
+        if (!node) return;
+
+        if (checkbox.checked) {
+            if (node.type === 'directory') this.selectDescendantFiles(node);
+            else this.selectedPaths.add(path);
+        } else {
+            if (node.type === 'directory') this.deselectDescendantFiles(node);
+            else this.selectedPaths.delete(path);
+        }
+
+        this.updateCheckboxStates();
+        this.updateSelectionCounter();
+        this.saveSelections();
+    }
+
+    updateCheckboxStates() {
+        const currentStructure = this.filterText ? this.filteredStructure : this.projectStructure;
+        const checkboxes = this.elements.projectStructure.querySelectorAll('input[type="checkbox"]');
+
+        checkboxes.forEach(cb => {
+            const path = cb.value;
+            const node = this.findNodeByPath(currentStructure, path);
+            if (!node) return;
+
+            if (node.type === 'directory') {
+                const allSelected = this.isAllDescendantsSelected(node);
+                const someSelected = this.isSomeDescendantsSelected(node);
+                cb.indeterminate = someSelected && !allSelected;
+                cb.checked = allSelected;
+            } else {
+                cb.checked = this.selectedPaths.has(path);
+                cb.indeterminate = false;
+            }
+        });
+    }
+
+    findNodeByPath(root, path) {
+        if (root.path === path) return root;
+        for (const child of root.children || []) {
+            const found = this.findNodeByPath(child, path);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    getAllDescendantFiles(node) {
+        let files = [];
+        if (node.type === 'file') files.push(node);
+        else if (node.children) {
+            node.children.forEach(child => {
+                files = files.concat(this.getAllDescendantFiles(child));
+            });
+        }
+        return files;
+    }
+
+    selectDescendantFiles(node) {
+        this.getAllDescendantFiles(node).forEach(file => this.selectedPaths.add(file.path));
+    }
+
+    deselectDescendantFiles(node) {
+        this.getAllDescendantFiles(node).forEach(file => this.selectedPaths.delete(file.path));
+    }
+
+    isAllDescendantsSelected(node) {
+        const descendantFiles = this.getAllDescendantFiles(node);
+        if (descendantFiles.length === 0) return false;
+        return descendantFiles.every(file => this.selectedPaths.has(file.path));
+    }
+
+    isSomeDescendantsSelected(node) {
+        const descendantFiles = this.getAllDescendantFiles(node);
+        return descendantFiles.some(file => this.selectedPaths.has(file.path));
+    }
+
+    updateSelectionCounter() {
+        const count = this.selectedPaths.size;
+        if (this.elements.selectedCount) this.elements.selectedCount.textContent = count;
+
+        if (this.elements.selectionCounter) {
+            if (count > 0) {
+                this.elements.selectionCounter.classList.remove('hidden');
+                this.elements.selectionCounter.classList.add('flex');
+            } else {
+                this.elements.selectionCounter.classList.add('hidden');
+                this.elements.selectionCounter.classList.remove('flex');
+            }
+        }
+
+        // Update process button state
+        if (count > 0) {
+            this.elements.processBtn.removeAttribute('disabled');
+            this.elements.processBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            this.elements.processBtn.setAttribute('disabled', 'true');
+            this.elements.processBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    handleProcess(event) {
+        event.preventDefault();
+        const formData = new FormData();
+        this.selectedPaths.forEach(path => formData.append('selected_paths', path));
+
+        // Show processing state
+        const originalBtnText = this.elements.processBtn.innerHTML;
+        this.elements.processBtn.innerHTML = `
+            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Processing...
+        `;
+        this.elements.processBtn.disabled = true;
+
+        fetch('/process/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.text();
+        })
+        .then(text => {
+            navigator.clipboard.writeText(text).then(() => {
+                this.showToast("Copied to clipboard!", "success");
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                this.showToast("Processed, but failed to copy to clipboard", "error");
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            this.showToast('Failed to process files', 'error');
+        })
+        .finally(() => {
+            this.elements.processBtn.innerHTML = originalBtnText;
+            this.elements.processBtn.disabled = false;
+        });
+    }
+
+    expandAll() {
+        // Find all closed toggles
+        const closedToggles = Array.from(this.elements.projectStructure.querySelectorAll('.toggle:not(.rotate-90)'));
+        closedToggles.forEach(t => {
+            // Check if we need to render children (lazy loading)
+            const parentLi = t.closest('li');
+            const childUl = parentLi.querySelector('ul');
+
+            if (childUl && !childUl.hasChildNodes()) {
+                // Trigger the click event on the parent div to load children via the existing event handler
+                const parentDiv = t.closest('div');
+                parentDiv.click();
+            } else if (childUl) {
+                // Just toggle visibility if children are already rendered
+                childUl.classList.remove('hidden');
+                t.classList.add('rotate-90');
+            }
+        });
+    }
+
+    collapseAll() {
+        const openToggles = this.elements.projectStructure.querySelectorAll('.toggle.rotate-90');
+        openToggles.forEach(t => {
+             const parentLi = t.closest('li');
+             const ul = parentLi.querySelector('ul');
+             if (ul) {
+                 ul.classList.add('hidden');
+                 t.classList.remove('rotate-90');
+             }
+        });
+    }
+
+    selectAll() {
+        const currentStructure = this.filterText ? this.filteredStructure : this.projectStructure;
+        this.selectDescendantFiles(currentStructure);
+        this.updateCheckboxStates();
+        this.updateSelectionCounter();
+        this.saveSelections();
+    }
+
+    deselectAll() {
+        const currentStructure = this.filterText ? this.filteredStructure : this.projectStructure;
+        this.deselectDescendantFiles(currentStructure);
+        this.updateCheckboxStates();
+        this.updateSelectionCounter();
+        this.saveSelections();
+    }
+
+    refreshIndex() {
+        fetch('/api/rebuild-index', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to rebuild index');
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'rebuilding') {
+                    this.showToast("Rebuilding project index...", "info");
+                    const interval = setInterval(() => {
+                        fetch('/api/index-status')
+                            .then(res => res.json())
+                            .then(status => {
+                                if (status.is_valid) {
+                                    clearInterval(interval);
+                                    this.fetchStructure(); // Reload structure instead of page reload
+                                    this.showToast("Index rebuilt successfully", "success");
+                                }
+                            })
+                            .catch(err => console.error('Status check failed:', err));
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                console.error('Error rebuilding index:', error);
+                this.showToast('Failed to rebuild index', 'error');
+            });
+    }
+
+    filterToDirectory(path) {
+        const escapedPath = this.escapeRegex(path);
+        const regexPattern = path ? `^${escapedPath}/.*` : '^.*';
+        this.elements.fileFilter.value = regexPattern;
+        this.elements.regexModeCheckbox.checked = true;
+        this.isRegexMode = true;
+        this.filterText = regexPattern;
+        this.applyFilter();
+    }
+
+    highlightMatch(element, text, filterText) {
         if (!filterText) {
             element.textContent = text;
             return;
@@ -311,284 +553,92 @@ document.addEventListener('DOMContentLoaded', () => {
             const before = text.substring(0, index);
             const match = text.substring(index, index + filterText.length);
             const after = text.substring(index + filterText.length);
-            element.innerHTML = `${before}<span class="highlight">${match}</span>${after}`;
+            element.innerHTML = `${this.escapeHtml(before)}<span class="bg-yellow-200 font-bold">${this.escapeHtml(match)}</span>${this.escapeHtml(after)}`;
         } else {
             element.textContent = text;
         }
     }
 
-    // Expand all folders
-    document.getElementById('expand-all').addEventListener('click', () => {
-        document.querySelectorAll('.toggle').forEach(button => {
-            const childUl = button.closest('li').querySelector('ul');
-            if (childUl && childUl.classList.contains('hidden')) {
-                button.click();
-            }
-        });
-    });
-
-    // Collapse all folders
-    document.getElementById('collapse-all').addEventListener('click', () => {
-        document.querySelectorAll('.toggle').forEach(button => {
-            const childUl = button.closest('li').querySelector('ul');
-            if (childUl && !childUl.classList.contains('hidden')) {
-                button.click();
-            }
-        });
-    });
-
-    // Select all visible files
-    document.getElementById('select-all').addEventListener('click', () => {
-        getAllDescendantFiles(filteredStructure).forEach(file => {
-            selectedPaths.add(file.path);
-        });
-        updateCheckboxStates();
-        updateSelectionCounter();
-        saveSelections();
-    });
-
-    // Deselect all visible files
-    document.getElementById('deselect-all').addEventListener('click', () => {
-        getAllDescendantFiles(filteredStructure).forEach(file => {
-            selectedPaths.delete(file.path);
-        });
-        updateCheckboxStates();
-        updateSelectionCounter();
-        saveSelections();
-    });
-
-    // Get all descendant files of a node
-    function getAllDescendantFiles(node) {
-        let files = [];
-        if (node.type === 'file') {
-            files.push(node);
-        } else if (node.children) {
-            node.children.forEach(child => {
-                files = files.concat(getAllDescendantFiles(child));
-            });
-        }
-        return files;
+    escapeHtml(unsafe) {
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
     }
 
-    // Select all descendant files of a node
-    function selectDescendantFiles(node) {
-        getAllDescendantFiles(node).forEach(file => {
-            selectedPaths.add(file.path);
-        });
+    capitalizeFirstLetter(string) {
+        if (!string) return string;
+        return string.charAt(0).toUpperCase() + string.slice(1);
     }
 
-    // Deselect all descendant files of a node
-    function deselectDescendantFiles(node) {
-        getAllDescendantFiles(node).forEach(file => {
-            selectedPaths.delete(file.path);
-        });
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    // Handle checkbox changes
-    function handleCheckboxChange(checkbox) {
-        const path = checkbox.value;
-        const currentStructure = filterText ? filteredStructure : projectStructure;
-        const node = findNodeByPath(currentStructure, path);
-        if (!node) return;
-        if (checkbox.checked) {
-            if (node.type === 'directory') {
-                selectDescendantFiles(node);
-            } else {
-                selectedPaths.add(path);
-            }
-        } else {
-            if (node.type === 'directory') {
-                deselectDescendantFiles(node);
-            } else {
-                selectedPaths.delete(path);
-            }
-        }
-        updateCheckboxStates();
-        updateSelectionCounter();
-        saveSelections();
-    }
-
-    // Update selection counter
-    function updateSelectionCounter() {
-        const selectedCount = selectedPaths.size;
-        const counterElement = document.getElementById('selection-counter');
-        const countElement = document.getElementById('selected-count');
-        const processButton = document.getElementById('process-button');
-        if (selectedCount > 0) {
-            countElement.textContent = selectedCount;
-            counterElement.classList.add('visible');
-            processButton.removeAttribute('disabled');
-        } else {
-            counterElement.classList.remove('visible');
-            processButton.setAttribute('disabled', 'true');
-        }
-    }
-
-    // Find a node by its path
-    function findNodeByPath(root, path) {
-        if (root.path === path) return root;
-        for (const child of root.children || []) {
-            const found = findNodeByPath(child, path);
-            if (found) return found;
-        }
-        return null;
-    }
-
-    // Update checkbox states
-    function updateCheckboxStates() {
-        const currentStructure = filterText ? filteredStructure : projectStructure;
-        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            const path = cb.value;
-            const node = findNodeByPath(currentStructure, path);
-            if (!node) return;
-            if (node.type === 'directory') {
-                const allSelected = isAllDescendantsSelected(node);
-                const someSelected = isSomeDescendantsSelected(node);
-                cb.indeterminate = someSelected && !allSelected;
-                cb.checked = allSelected;
-            } else {
-                cb.checked = selectedPaths.has(path);
-                cb.indeterminate = false;
-            }
-        });
-    }
-
-    // Check if all descendants are selected
-    function isAllDescendantsSelected(node) {
-        const descendantFiles = getAllDescendantFiles(node);
-        if (descendantFiles.length === 0) return false;
-        return descendantFiles.every(file => selectedPaths.has(file.path));
-    }
-
-    // Check if some descendants are selected
-    function isSomeDescendantsSelected(node) {
-        const descendantFiles = getAllDescendantFiles(node);
-        return descendantFiles.some(file => selectedPaths.has(file.path));
-    }
-
-    // Show toast notification
-    function showToast(message, type = 'info') {
-        const container = document.getElementById('toast-container');
+    showToast(message, type = 'info') {
         const toast = document.createElement('div');
+        let bgClass = 'bg-blue-600';
+        if (type === 'success') bgClass = 'bg-green-600';
+        if (type === 'error') bgClass = 'bg-red-600';
 
-        // Set base classes
-        let toastClasses = 'toast px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-xs';
+        toast.className = `${bgClass} text-white px-4 py-3 rounded-lg shadow-lg flex items-center justify-between max-w-sm mb-2 transform transition-all duration-300 ease-out translate-x-full opacity-0 pointer-events-auto`;
 
-        // Add type-specific classes
-        switch(type) {
-            case 'success':
-                toastClasses += ' bg-green-500 text-white';
-                break;
-            case 'error':
-                toastClasses += ' bg-red-500 text-white';
-                break;
-            default:
-                toastClasses += ' bg-blue-500 text-white';
-        }
-
-        toast.className = toastClasses;
         toast.innerHTML = `
-            <span>${message}</span>
-            <button class="ml-2" onclick="this.parentElement.classList.add('hide')">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span class="mr-2">${message}</span>
+            <button class="ml-2 hover:bg-white hover:bg-opacity-20 rounded-full p-1 focus:outline-none">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         `;
 
-        container.appendChild(toast);
+        const closeBtn = toast.querySelector('button');
+        closeBtn.onclick = () => {
+            toast.classList.add('translate-x-full', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        };
 
-        // Auto-dismiss after 3 seconds
+        this.elements.toastContainer.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.classList.remove('translate-x-full', 'opacity-0');
+        });
+
+        // Auto dismiss
         setTimeout(() => {
-            toast.classList.add('hide');
+            toast.classList.add('translate-x-full', 'opacity-0');
             setTimeout(() => toast.remove(), 300);
         }, 3000);
     }
 
-    // Load persisted selections from localStorage (best effort)
-    function loadSelections() {
-        if (!projectName) return;
-        const key = `contextCreatorSelectedPaths_${projectName}`;
+    saveSelections() {
+        if (!this.projectName) return;
+        const key = `contextCreatorSelectedPaths_${this.projectName}`;
+        localStorage.setItem(key, JSON.stringify(Array.from(this.selectedPaths)));
+    }
+
+    loadSelections() {
+        if (!this.projectName) return;
+        const key = `contextCreatorSelectedPaths_${this.projectName}`;
         const saved = localStorage.getItem(key);
         if (saved) {
             try {
                 const paths = JSON.parse(saved);
                 paths.forEach(path => {
-                    const node = findNodeByPath(projectStructure, path);
-                    if (node && node.type === 'file') {
-                        selectedPaths.add(path);
-                    }
+                     // Verify path still exists in structure before adding
+                     const node = this.findNodeByPath(this.projectStructure, path);
+                     if (node && node.type === 'file') {
+                         this.selectedPaths.add(path);
+                     }
                 });
             } catch (e) {
                 console.error('Failed to load selections:', e);
             }
         }
-        updateCheckboxStates();
-        updateSelectionCounter();
+        this.updateCheckboxStates();
+        this.updateSelectionCounter();
     }
-
-    // Save selections to localStorage
-    function saveSelections() {
-        if (!projectName) return;
-        const key = `contextCreatorSelectedPaths_${projectName}`;
-        localStorage.setItem(key, JSON.stringify(Array.from(selectedPaths)));
-    }
-
-    // Intercept form submission to send all selected paths
-    const processForm = document.getElementById('process-form');
-    processForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const formData = new FormData();
-        selectedPaths.forEach(path => {
-            formData.append('selected_paths', path);
-        });
-        fetch('/process/', {
-            method: 'POST',
-            body: formData
-        }).then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.text();
-        }).then(text => {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast("Copied to clipboard!", "success");
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-                showToast("Failed to copy to clipboard", "error");
-            });
-        }).catch(error => {
-            console.error('Error:', error);
-            showToast('Failed to process files', 'error');
-        });
-    });
-
-    // Refresh index button
-    document.getElementById('refresh-index').addEventListener('click', () => {
-        fetch('/api/rebuild-index', { method: 'POST' })
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to rebuild index');
-                return response.json();
-            })
-            .then(data => {
-                if (data.status === 'rebuilding') {
-                    showToast("Rebuilding project index...", "info");
-                    const interval = setInterval(() => {
-                        fetch('/api/index-status')
-                            .then(res => res.json())
-                            .then(status => {
-                                if (status.is_valid) {
-                                    clearInterval(interval);
-                                    window.location.reload();
-                                }
-                            })
-                            .catch(err => console.error('Status check failed:', err));
-                    }, 1000);
-                }
-            })
-            .catch(error => {
-                console.error('Error rebuilding index:', error);
-                showToast('Failed to rebuild index', 'error');
-            });
-    });
-});
+}

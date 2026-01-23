@@ -2,54 +2,88 @@
 
 {% block title %}Project Explorer{% endblock %}
 
+{% block body_class %}bg-gray-50 h-screen flex flex-col overflow-hidden{% endblock %}
+
 {% block content %}
-    <div class="max-w-4xl mx-auto p-6">
-        <h1 id="project-heading" class="text-3xl font-bold text-gray-800 mb-6">Project Explorer</h1>
-        <!-- Add search/filter input -->
-        <div class="mb-4">
-            <div class="relative">
-                <input type="text" id="file-filter" placeholder="Filter files..."
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="clear-filter" class="absolute right-2 top-2 text-gray-400 hover:text-gray-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                            clip-rule="evenodd" />
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-none z-10 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <h1 id="project-heading" class="text-2xl font-bold text-gray-800">Project Explorer</h1>
+
+            <div class="flex items-center space-x-4">
+                <!-- Selection Counter -->
+                <div id="selection-counter" class="hidden items-center text-sm font-medium text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 transition-all duration-300">
+                    <span id="selected-count" class="font-bold mr-1">0</span> files selected
+                </div>
+
+                <!-- Process Button -->
+                <button type="submit" form="process-form" id="process-button" disabled
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                     </svg>
+                    <span>Process Files</span>
                 </button>
             </div>
-            <div class="mt-2">
-                <label class="flex items-center space-x-2 text-sm text-gray-600">
-                    <input type="checkbox" id="regex-mode">
-                    <span>Use Regex</span>
-                </label>
+        </div>
+
+        <!-- Toolbar & Filter -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <!-- Filter -->
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                  <div class="relative w-full md:w-80 group">
+                      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      <input type="text" id="file-filter" placeholder="Filter files..."
+                          class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-shadow">
+                      <button id="clear-filter" class="absolute right-2 top-2 p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors" title="Clear filter">
+                          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                      </button>
+                  </div>
+                  <label class="flex items-center space-x-2 text-xs text-gray-500 cursor-pointer hover:text-gray-700 flex-shrink-0">
+                      <input type="checkbox" id="regex-mode" class="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 border-gray-300">
+                      <span>Use Regex</span>
+                  </label>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                 <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                     <button id="expand-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Expand All</button>
+                     <button id="collapse-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Collapse All</button>
+                 </div>
+
+                 <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg ml-2">
+                     <button id="select-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Select All</button>
+                     <button id="deselect-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Deselect All</button>
+                 </div>
+
+                 <button id="refresh-index" class="p-2 ml-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500" title="Refresh Index">
+                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                 </button>
             </div>
         </div>
-        <div class="flex space-x-4 mb-4">
-            <button id="expand-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Expand All</button>
-            <button id="collapse-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Collapse All</button>
-            <button id="select-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Select All</button>
-            <button id="deselect-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Deselect All</button>
-            <button id="refresh-index" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Refresh Structure</button>
+    </header>
+
+    <!-- Main Content (Scrollable) -->
+    <main class="flex-1 overflow-y-auto p-6 scroll-smooth bg-gray-50">
+        <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
+            <div class="p-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+                 <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">File Structure</h2>
+            </div>
+            <div class="p-4">
+                <form id="process-form" action="/process/" method="post">
+                    <ul id="project-structure" class="space-y-1"></ul>
+                </form>
+            </div>
         </div>
-        <form id="process-form" action="/process/" method="post">
-            <ul id="project-structure" class="space-y-2 mb-10"></ul>
-        </form>
-        <!-- Selection Counter Badge -->
-        <div id="selection-counter" class="selection-counter bg-blue-100 text-blue-800">
-            <span id="selected-count">0</span> files selected
-        </div>
-        <!-- Floating Action Button -->
-        <button type="submit" form="process-form" id="process-button"
-            class="floating-button bg-blue-500 text-white hover:bg-blue-600" disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2" />
-            </svg>
-        </button>
-    </div>
-    <!-- Toast Notification Container - moved outside main container -->
-    <div id="toast-container" class="fixed bottom-4 right-4 z-[9999] space-y-2"></div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 {% endblock %}
 
 {% block scripts %}

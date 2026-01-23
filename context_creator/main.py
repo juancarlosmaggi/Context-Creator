@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -101,7 +102,7 @@ async def get_index_status_route():
 async def process_files_route(selected_paths: List[str] = Form(...)):
     """Process selected paths and return the output as text."""
     base_path = Path.cwd()
-    processed_content = process_files(selected_paths, base_path)
+    processed_content = await run_in_threadpool(process_files, selected_paths, base_path)
     return Response(content=processed_content, media_type="text/plain")
 
 @app.get("/api/project-structure")

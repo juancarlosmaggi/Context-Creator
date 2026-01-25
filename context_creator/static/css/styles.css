@@ -42,3 +42,19 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* Folder Expansion Animation */
+.folder-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease-out;
+}
+
+.folder-content.open {
+    grid-template-rows: 1fr;
+}
+
+.folder-inner {
+    overflow: hidden;
+    min-height: 0;
+}

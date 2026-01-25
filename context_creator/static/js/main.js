@@ -157,7 +157,7 @@ class ProjectExplorer {
             // Toggle Icon / Spacer
             if (node.type === 'directory') {
                 const toggleButton = document.createElement('div'); // Changed to div to avoid button nesting issues if any
-                toggleButton.className = 'toggle mr-2 text-gray-400 hover:text-gray-600 cursor-pointer transform transition-transform duration-200';
+                toggleButton.className = 'toggle mr-2 text-gray-400 hover:text-gray-600 cursor-pointer transform transition-transform duration-300';
                 if (isFiltered) toggleButton.classList.add('rotate-90');
                 toggleButton.innerHTML = `
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,9 +217,14 @@ class ProjectExplorer {
 
             // Children Container
             if (node.type === 'directory') {
+                const childWrapper = document.createElement('div');
+                childWrapper.className = `folder-content ${isFiltered ? 'open' : ''}`;
+
                 const childUl = document.createElement('ul');
-                childUl.className = `pl-6 space-y-0.5 border-l border-gray-200 ml-2.5 ${isFiltered ? '' : 'hidden'}`;
-                li.appendChild(childUl);
+                childUl.className = `pl-6 space-y-0.5 border-l border-gray-200 ml-2.5 folder-inner`;
+
+                childWrapper.appendChild(childUl);
+                li.appendChild(childWrapper);
 
                 if (isFiltered && node.children && node.children.length > 0) {
                     this.renderNodes(node.children, childUl, isFiltered);
@@ -230,15 +235,15 @@ class ProjectExplorer {
                     // Don't toggle if clicking checkbox or action button (handled separately)
                     if (e.target.type === 'checkbox' || e.target.closest('button')) return;
 
-                    if (childUl.classList.contains('hidden')) {
+                    if (!childWrapper.classList.contains('open')) {
                         if (!childUl.hasChildNodes() && node.children) {
                             this.renderNodes(node.children, childUl);
                             this.updateCheckboxStates();
                         }
-                        childUl.classList.remove('hidden');
+                        childWrapper.classList.add('open');
                         div.querySelector('.toggle').classList.add('rotate-90');
                     } else {
-                        childUl.classList.add('hidden');
+                        childWrapper.classList.remove('open');
                         div.querySelector('.toggle').classList.remove('rotate-90');
                     }
                 };
@@ -468,8 +473,11 @@ class ProjectExplorer {
                 parentDiv.click();
             } else if (childUl) {
                 // Just toggle visibility if children are already rendered
-                childUl.classList.remove('hidden');
-                t.classList.add('rotate-90');
+                const wrapper = childUl.parentElement;
+                if (wrapper && wrapper.classList.contains('folder-content')) {
+                    wrapper.classList.add('open');
+                    t.classList.add('rotate-90');
+                }
             }
         });
     }
@@ -480,8 +488,11 @@ class ProjectExplorer {
              const parentLi = t.closest('li');
              const ul = parentLi.querySelector('ul');
              if (ul) {
-                 ul.classList.add('hidden');
-                 t.classList.remove('rotate-90');
+                 const wrapper = ul.parentElement;
+                 if (wrapper && wrapper.classList.contains('folder-content')) {
+                     wrapper.classList.remove('open');
+                     t.classList.remove('rotate-90');
+                 }
              }
         });
     }

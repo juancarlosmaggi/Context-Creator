@@ -142,13 +142,13 @@ class ProjectExplorer {
             li.className = 'select-none'; // Prevent text selection while clicking
 
             const div = document.createElement('div');
-            div.className = `flex items-center hover:bg-gray-100 rounded-md px-2 py-1 transition-colors group cursor-pointer ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
+            div.className = `flex items-center hover:bg-[#007AFF]/10 rounded-lg px-2 py-1.5 transition-colors group cursor-pointer ${node.type === 'file' ? 'file-item' : 'dir-item'}`;
 
             // Checkbox
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = node.path;
-            checkbox.className = 'mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
+            checkbox.className = 'mr-3 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
             // Stop propagation on checkbox click to prevent triggering row click
             checkbox.addEventListener('click', (e) => e.stopPropagation());
 
@@ -168,7 +168,7 @@ class ProjectExplorer {
 
                 // Folder Icon
                 div.innerHTML += `
-                    <span class="mr-2 text-yellow-500">
+                    <span class="mr-2 text-blue-500">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                         </svg>
@@ -188,7 +188,7 @@ class ProjectExplorer {
 
             // Name
             const nameSpan = document.createElement('span');
-            nameSpan.className = `text-gray-700 text-sm ${node.type === 'file' ? 'file-name' : 'font-medium'}`;
+            nameSpan.className = `text-gray-700 text-[13px] leading-6 ${node.type === 'file' ? 'file-name' : 'font-medium'}`;
             if (this.filterText && node.type === 'file' && !this.isRegexMode) {
                 this.highlightMatch(nameSpan, node.name, this.filterText);
             } else {

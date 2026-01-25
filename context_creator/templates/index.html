@@ -6,9 +6,9 @@
 
 {% block content %}
     <!-- Header -->
-    <header class="bg-white border-b border-gray-200 px-6 py-4 flex-none z-10 shadow-sm">
+    <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-6 py-4 flex-none">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <h1 id="project-heading" class="text-2xl font-bold text-gray-800">Project Explorer</h1>
+            <h1 id="project-heading" class="text-2xl font-semibold tracking-tight text-gray-900">Project Explorer</h1>
 
             <div class="flex items-center space-x-4">
                 <!-- Selection Counter -->
@@ -18,7 +18,7 @@
 
                 <!-- Process Button -->
                 <button type="submit" form="process-form" id="process-button" disabled
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-6 rounded-full shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                     </svg>
@@ -38,7 +38,7 @@
                         </svg>
                       </div>
                       <input type="text" id="file-filter" placeholder="Filter files..."
-                          class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-shadow">
+                          class="w-full pl-10 pr-10 py-2 bg-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all placeholder-gray-500 text-gray-800">
                       <button id="clear-filter" class="absolute right-2 top-2 p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors" title="Clear filter">
                           <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
                       </button>
@@ -51,12 +51,12 @@
 
             <!-- Actions -->
             <div class="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-                 <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                 <div class="flex space-x-1 bg-gray-200/50 p-1 rounded-lg">
                      <button id="expand-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Expand All</button>
                      <button id="collapse-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Collapse All</button>
                  </div>
 
-                 <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg ml-2">
+                 <div class="flex space-x-1 bg-gray-200/50 p-1 rounded-lg ml-2">
                      <button id="select-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Select All</button>
                      <button id="deselect-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Deselect All</button>
                  </div>
@@ -69,9 +69,9 @@
     </header>
 
     <!-- Main Content (Scrollable) -->
-    <main class="flex-1 overflow-y-auto p-6 scroll-smooth bg-gray-50">
-        <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
-            <div class="p-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+    <main class="flex-1 overflow-y-auto p-6 scroll-smooth">
+        <div class="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200/60 min-h-[500px]">
+            <div class="p-4 border-b border-gray-100 bg-gray-50/30 rounded-t-2xl">
                  <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">File Structure</h2>
             </div>
             <div class="p-4">

@@ -41,7 +41,7 @@ For modifying the code or contributing:
 2. Install in editable mode (changes take effect without reinstalling):
 
    ```bash
-   pip install -e .
+   pipx install -e . --force
    ```
 
    Alternatively, for a standard installation, use `pip install .`.

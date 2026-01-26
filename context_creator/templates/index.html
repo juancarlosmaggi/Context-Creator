@@ -61,6 +61,12 @@
                      <button id="deselect-all" class="text-xs px-3 py-1.5 hover:bg-white hover:shadow-sm rounded-md text-gray-600 font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">Deselect All</button>
                  </div>
 
+                 <button id="toggle-selections-btn" class="p-2 ml-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500" title="Saved Selections">
+                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                     </svg>
+                 </button>
+
                  <button id="refresh-index" class="p-2 ml-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500" title="Refresh Index">
                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                  </button>
@@ -81,6 +87,47 @@
             </div>
         </div>
     </main>
+
+    <!-- Saved Selections Sidebar Backdrop -->
+    <div id="selections-backdrop" class="fixed inset-0 bg-black/20 z-30 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+
+    <!-- Saved Selections Sidebar -->
+    <div id="selections-sidebar" class="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl z-40 transform translate-x-full transition-transform duration-300 flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 class="text-lg font-semibold text-gray-900">Saved Selections</h2>
+            <button id="close-sidebar" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- Save New Form -->
+            <div>
+                <label for="selection-name" class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Save Current Selection</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="selection-name" placeholder="Name (e.g. Frontend)" class="flex-1 min-w-0 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button id="save-selection-btn" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- List -->
+            <div>
+                <h3 class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Your Lists</h3>
+                <ul id="saved-selections-list" class="space-y-2">
+                    <!-- Items will be injected here -->
+                    <li class="text-sm text-gray-400 italic text-center py-4">No saved selections yet</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>

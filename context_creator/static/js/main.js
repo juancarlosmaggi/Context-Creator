@@ -10,6 +10,7 @@ class ProjectExplorer {
         this.filterText = '';
         this.projectName = '';
         this.isRegexMode = false;
+        this.presets = {};
 
         this.elements = {
             projectStructure: document.getElementById('project-structure'),
@@ -26,7 +27,16 @@ class ProjectExplorer {
             selectedCount: document.getElementById('selected-count'),
             selectionCounter: document.getElementById('selection-counter'),
             toastContainer: document.getElementById('toast-container'),
-            projectHeading: document.getElementById('project-heading')
+            projectHeading: document.getElementById('project-heading'),
+
+            // Saved Selections UI
+            toggleSelectionsBtn: document.getElementById('toggle-selections-btn'),
+            selectionsSidebar: document.getElementById('selections-sidebar'),
+            selectionsBackdrop: document.getElementById('selections-backdrop'),
+            closeSidebarBtn: document.getElementById('close-sidebar'),
+            selectionNameInput: document.getElementById('selection-name'),
+            saveSelectionBtn: document.getElementById('save-selection-btn'),
+            savedSelectionsList: document.getElementById('saved-selections-list')
         };
 
         this.init();
@@ -71,6 +81,25 @@ class ProjectExplorer {
 
         // Process form
         this.elements.processForm.addEventListener('submit', (e) => this.handleProcess(e));
+
+        // Saved Selections
+        if (this.elements.toggleSelectionsBtn) {
+            this.elements.toggleSelectionsBtn.addEventListener('click', () => this.toggleSidebar(true));
+        }
+        if (this.elements.closeSidebarBtn) {
+            this.elements.closeSidebarBtn.addEventListener('click', () => this.toggleSidebar(false));
+        }
+        if (this.elements.selectionsBackdrop) {
+            this.elements.selectionsBackdrop.addEventListener('click', () => this.toggleSidebar(false));
+        }
+        if (this.elements.saveSelectionBtn) {
+            this.elements.saveSelectionBtn.addEventListener('click', () => this.savePreset());
+        }
+        if (this.elements.selectionNameInput) {
+            this.elements.selectionNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.savePreset();
+            });
+        }
     }
 
     fetchStructure() {
@@ -92,6 +121,7 @@ class ProjectExplorer {
                 this.filteredStructure = this.projectStructure;
                 this.render();
                 this.loadSelections();
+                this.loadPresets();
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -651,5 +681,148 @@ class ProjectExplorer {
         }
         this.updateCheckboxStates();
         this.updateSelectionCounter();
+    }
+
+    // Saved Selections Methods
+
+    toggleSidebar(show) {
+        if (!this.elements.selectionsSidebar) return;
+
+        if (show) {
+            this.elements.selectionsSidebar.classList.remove('translate-x-full');
+            this.elements.selectionsBackdrop.classList.remove('hidden', 'opacity-0');
+            this.elements.selectionNameInput.focus();
+        } else {
+            this.elements.selectionsSidebar.classList.add('translate-x-full');
+            this.elements.selectionsBackdrop.classList.add('opacity-0');
+            setTimeout(() => {
+                this.elements.selectionsBackdrop.classList.add('hidden');
+            }, 300);
+        }
+    }
+
+    loadPresets() {
+        if (!this.projectName) return;
+        const key = `contextCreatorPresets_${this.projectName}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                this.presets = JSON.parse(saved);
+            } catch (e) {
+                console.error('Failed to parse presets:', e);
+                this.presets = {};
+            }
+        }
+        this.renderPresets();
+    }
+
+    savePresetsToStorage() {
+        if (!this.projectName) return;
+        const key = `contextCreatorPresets_${this.projectName}`;
+        localStorage.setItem(key, JSON.stringify(this.presets));
+    }
+
+    renderPresets() {
+        const list = this.elements.savedSelectionsList;
+        if (!list) return;
+        list.innerHTML = '';
+        const names = Object.keys(this.presets).sort();
+
+        if (names.length === 0) {
+            list.innerHTML = '<li class="text-sm text-gray-400 italic text-center py-4">No saved selections yet</li>';
+            return;
+        }
+
+        names.forEach(name => {
+            const count = this.presets[name].length;
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors cursor-pointer';
+            li.innerHTML = `
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">${this.escapeHtml(name)}</p>
+                    <p class="text-xs text-gray-500">${count} files</p>
+                </div>
+                <button class="delete-preset p-1.5 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            `;
+
+            li.addEventListener('click', (e) => {
+                 if (!e.target.closest('.delete-preset')) {
+                     this.loadPreset(name);
+                 }
+            });
+
+            li.querySelector('.delete-preset').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete preset "${name}"?`)) {
+                    this.deletePreset(name);
+                }
+            });
+
+            list.appendChild(li);
+        });
+    }
+
+    savePreset() {
+        const name = this.elements.selectionNameInput.value.trim();
+        if (!name) {
+            this.showToast("Please enter a name", "error");
+            return;
+        }
+        if (this.selectedPaths.size === 0) {
+             this.showToast("No files selected", "error");
+             return;
+        }
+
+        if (this.presets[name] && !confirm(`Overwrite existing preset "${name}"?`)) {
+            return;
+        }
+
+        this.presets[name] = Array.from(this.selectedPaths);
+        this.savePresetsToStorage();
+        this.renderPresets();
+        this.elements.selectionNameInput.value = '';
+        this.showToast(`Saved preset "${name}"`, "success");
+    }
+
+    loadPreset(name) {
+        const paths = this.presets[name];
+        if (!paths) return;
+
+        // Verify paths exist in current structure
+        const validPaths = [];
+        let missingCount = 0;
+
+        paths.forEach(path => {
+            const node = this.findNodeByPath(this.projectStructure, path);
+            if (node && node.type === 'file') {
+                validPaths.push(path);
+            } else {
+                missingCount++;
+            }
+        });
+
+        this.selectedPaths = new Set(validPaths);
+        this.updateCheckboxStates();
+        this.updateSelectionCounter();
+        this.saveSelections(); // Trigger auto-save of current selection
+
+        let msg = `Loaded preset "${name}"`;
+        if (missingCount > 0) {
+            msg += ` (${missingCount} files not found)`;
+            this.showToast(msg, "info");
+        } else {
+            this.showToast(msg, "success");
+        }
+    }
+
+    deletePreset(name) {
+        delete this.presets[name];
+        this.savePresetsToStorage();
+        this.renderPresets();
+        this.showToast(`Deleted preset "${name}"`, "info");
     }
 }

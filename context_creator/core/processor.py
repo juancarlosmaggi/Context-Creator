@@ -89,9 +89,20 @@ def process_files(selected_paths: List[str], base_path: Path) -> str:
                 if not should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec):
                     all_files.add(full_path)
             elif full_path.is_dir():
-                for f in full_path.rglob("*"):
-                    if f.is_file() and not should_ignore(f, base_path, git_root, ignore_spec, context_ignore_spec):
-                        all_files.add(f)
+                for root, dirs, files in os.walk(full_path):
+                    root_path = Path(root)
+
+                    # Modify dirs in-place to skip ignored directories
+                    for i in range(len(dirs) - 1, -1, -1):
+                        d = dirs[i]
+                        d_path = root_path / d
+                        if should_ignore(d_path, base_path, git_root, ignore_spec, context_ignore_spec):
+                            del dirs[i]
+
+                    for f in files:
+                        f_path = root_path / f
+                        if not should_ignore(f_path, base_path, git_root, ignore_spec, context_ignore_spec):
+                            all_files.add(f_path)
 
     sorted_files = sorted(list(all_files), key=lambda f: str(f.relative_to(base_path)))
 

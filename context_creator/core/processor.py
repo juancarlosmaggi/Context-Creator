@@ -89,6 +89,8 @@ def process_files(selected_paths: List[str], base_path: Path) -> str:
                 if not should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec):
                     all_files.add(full_path)
             elif full_path.is_dir():
+                # Use os.walk with in-place pruning of dirs to avoid traversing ignored directories
+                # This is significantly faster than rglob which traverses everything before filtering
                 for root, dirs, files in os.walk(full_path):
                     root_path = Path(root)
 

@@ -42,9 +42,6 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     context_ignore_spec = parse_contextignore(base_path)
 
     def build_tree(path: Path, root: Path) -> Optional[Dict[str, Any]]:
-        if should_ignore(path, base_path, git_root, ignore_spec, context_ignore_spec):
-            return None
-
         entry = {
             "path": str(path.relative_to(root)).replace("\\", "/"),
             "name": path.name,

@@ -1,6 +1,7 @@
 from typing import Union, Optional, List
 from pathlib import Path
 from functools import lru_cache
+import os
 import pathspec
 
 def find_git_root(path: Path) -> Optional[Path]:
@@ -90,7 +91,7 @@ def parse_contextignore(base_path: Path) -> pathspec.PathSpec:
     return pathspec.PathSpec.from_lines("gitignore", patterns)
 
 def should_ignore(
-    path: Path,
+    path: Union[Path, str],
     base_path: Path,
     git_root: Optional[Path],
     ignore_spec: Optional[pathspec.PathSpec],
@@ -109,33 +110,63 @@ def should_ignore(
     Returns:
         True if the path should be ignored, False otherwise.
     """
+    is_dir = False
+    if isinstance(path, str):
+        name = os.path.basename(path)
+        # Optimized string handling
+        path_str = path
+        is_dir = os.path.isdir(path)
+    else:
+        name = path.name
+        path_str = str(path)
+        is_dir = path.is_dir()
+
     # Always ignore hidden files/dirs
-    if path.name.startswith("."):
+    if name.startswith("."):
         return True
 
     # Check against gitignore patterns
     if git_root and ignore_spec:
         try:
-            if path.is_relative_to(git_root):
-                rel_path = path.relative_to(git_root)
-                # Check both the path and the path with trailing slash for directories
-                if ignore_spec.match_file(rel_path):
+            git_root_str = str(git_root)
+            if path_str == git_root_str:
+                rel_path_str = "."
+                if ignore_spec.match_file(rel_path_str):
                     return True
-                if path.is_dir() and ignore_spec.match_file(str(rel_path) + '/'):
+                if is_dir and ignore_spec.match_file(rel_path_str + '/'):
                     return True
-        except ValueError:
+            else:
+                sep = os.sep
+                prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+                if path_str.startswith(prefix):
+                    rel_path_str = path_str[len(prefix):]
+                    if ignore_spec.match_file(rel_path_str):
+                        return True
+                    if is_dir and ignore_spec.match_file(rel_path_str + '/'):
+                        return True
+        except (ValueError, TypeError):
             pass
 
     # Check against contextignore patterns
     if context_ignore_spec:
         try:
-            if path.is_relative_to(base_path):
-                rel_path = path.relative_to(base_path)
-                if context_ignore_spec.match_file(rel_path):
+            base_path_str = str(base_path)
+            if path_str == base_path_str:
+                rel_path_str = "."
+                if context_ignore_spec.match_file(rel_path_str):
                     return True
-                if path.is_dir() and context_ignore_spec.match_file(str(rel_path) + '/'):
+                if is_dir and context_ignore_spec.match_file(rel_path_str + '/'):
                     return True
-        except ValueError:
+            else:
+                sep = os.sep
+                prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+                if path_str.startswith(prefix):
+                    rel_path_str = path_str[len(prefix):]
+                    if context_ignore_spec.match_file(rel_path_str):
+                        return True
+                    if is_dir and context_ignore_spec.match_file(rel_path_str + '/'):
+                        return True
+        except (ValueError, TypeError):
             pass
 
     return False

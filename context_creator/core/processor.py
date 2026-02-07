@@ -28,8 +28,9 @@ def process_files(selected_paths: List[str], base_path: Path) -> str:
     def process_file(file_path: Path) -> str:
         relative_path = file_path.relative_to(base_path)
         try:
-            if file_path.stat().st_size > 10 * 1024 * 1024: # Skip files > 10MB
-                size_mb = file_path.stat().st_size / 1024 / 1024
+            file_stat = file_path.stat()
+            if file_stat.st_size > 10 * 1024 * 1024: # Skip files > 10MB
+                size_mb = file_stat.st_size / 1024 / 1024
                 return f"# File\n\n```text\n{relative_path}\n```\n\n# Content\n\n```text\n[File too large - {size_mb:.2f} MB]\n```\n\n"
 
             # Get file extension for markdown syntax highlighting

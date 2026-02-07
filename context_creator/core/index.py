@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 import functools
 import concurrent.futures
+import os
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
@@ -52,10 +53,11 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
         if path.is_dir():
             try:
                 children = []
-                for child in path.iterdir():
-                    if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
-                        continue
-                    children.append(child)
+                with os.scandir(path) as it:
+                    for entry in it:
+                        if should_ignore(entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=entry.is_dir()):
+                            continue
+                        children.append(Path(entry.path))
 
                 # Sort directories first, then files, both alphabetically
                 children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
@@ -78,10 +80,11 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
 
     try:
         children = []
-        for child in base_path.iterdir():
-            if should_ignore(child, base_path, git_root, ignore_spec, context_ignore_spec):
-                continue
-            children.append(child)
+        with os.scandir(base_path) as it:
+            for entry in it:
+                if should_ignore(entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=entry.is_dir()):
+                    continue
+                children.append(Path(entry.path))
 
         children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
 

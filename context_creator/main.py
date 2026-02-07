@@ -35,14 +35,14 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 # Add a debugging function to test gitignore patterns
 @app.get("/api/test-gitignore/{path:path}")
-async def test_gitignore(path: str):
+def test_gitignore(path: str):
     """Test if a specific path would be ignored by gitignore rules."""
     base_path = Path.cwd()
-    git_root = await run_in_threadpool(find_git_root, base_path)
+    git_root = find_git_root(base_path)
     if not git_root:
         return {"error": "No git repository found"}
-    ignore_spec = await run_in_threadpool(parse_gitignore, git_root)
-    context_ignore_spec = await run_in_threadpool(parse_contextignore, base_path)
+    ignore_spec = parse_gitignore(git_root)
+    context_ignore_spec = parse_contextignore(base_path)
 
     test_path = Path(path)
     full_path = base_path / test_path

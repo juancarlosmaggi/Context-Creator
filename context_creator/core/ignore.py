@@ -48,24 +48,59 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
         except (OSError, UnicodeDecodeError):
             pass
 
-    # Then process all other .gitignore files
-    for gitignore_path in git_root.glob("*/**/.gitignore"): # Skip root .gitignore we processed above
-        try:
-            relative_dir = gitignore_path.parent.relative_to(git_root)
-            with open(gitignore_path, "r", encoding="utf-8") as f:
-                lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-                # For patterns that don't start with '/', prefix with the directory path
-                adjusted = []
-                for line in lines:
-                    if line.startswith('/'):
-                        # This is a directory-specific absolute pattern, make it relative to this directory
-                        adjusted.append(str(relative_dir / line[1:]))
-                    else:
-                        # This is already a pattern relative to the .gitignore location
-                        adjusted.append(str(relative_dir / line))
-                patterns.extend(adjusted)
-        except (ValueError, OSError, UnicodeDecodeError):
-            continue
+    # Create a spec for pruning based on root .gitignore
+    # This spec is used to skip traversing into ignored directories
+    prune_spec = pathspec.PathSpec.from_lines("gitignore", patterns)
+
+    # Then process all other .gitignore files using os.walk for controlled traversal
+    # We prune directories that are ignored by the root .gitignore
+    for root, dirs, files in os.walk(git_root):
+        root_path = Path(root)
+
+        # Modify dirs in-place to prune traversal
+        # 1. Remove hidden directories (starting with .)
+        # 2. Remove directories ignored by root .gitignore
+
+        # Iterate backwards to safely remove from list
+        for i in range(len(dirs) - 1, -1, -1):
+            d = dirs[i]
+            if d.startswith("."):
+                del dirs[i]
+                continue
+
+            dir_abs = root_path / d
+            try:
+                # Calculate path relative to git_root for checking against prune_spec
+                rel_path = dir_abs.relative_to(git_root)
+                rel_path_str = str(rel_path)
+
+                # Check if the directory itself is ignored
+                if prune_spec.match_file(rel_path_str) or prune_spec.match_file(rel_path_str + "/"):
+                    del dirs[i]
+            except ValueError:
+                # Should not happen if we are traversing under git_root
+                pass
+
+        # Check for .gitignore in current directory
+        # Skip the root .gitignore as we already processed it
+        if root_path != git_root and ".gitignore" in files:
+            gitignore_path = root_path / ".gitignore"
+            try:
+                relative_dir = root_path.relative_to(git_root)
+                with open(gitignore_path, "r", encoding="utf-8") as f:
+                    lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                    # For patterns that don't start with '/', prefix with the directory path
+                    adjusted = []
+                    for line in lines:
+                        if line.startswith('/'):
+                            # This is a directory-specific absolute pattern, make it relative to this directory
+                            adjusted.append(str(relative_dir / line[1:]))
+                        else:
+                            # This is already a pattern relative to the .gitignore location
+                            adjusted.append(str(relative_dir / line))
+                    patterns.extend(adjusted)
+            except (ValueError, OSError, UnicodeDecodeError):
+                continue
 
     return pathspec.PathSpec.from_lines("gitignore", patterns)
 

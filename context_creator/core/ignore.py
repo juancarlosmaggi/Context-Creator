@@ -95,7 +95,8 @@ def should_ignore(
     base_path: Path,
     git_root: Optional[Path],
     ignore_spec: Optional[pathspec.PathSpec],
-    context_ignore_spec: pathspec.PathSpec
+    context_ignore_spec: pathspec.PathSpec,
+    is_dir: Optional[bool] = None
 ) -> bool:
     """
     Determine if a path should be ignored based on .gitignore and .contextignore rules.
@@ -106,20 +107,22 @@ def should_ignore(
         git_root: The git root directory (if any).
         ignore_spec: The PathSpec for gitignore patterns.
         context_ignore_spec: The PathSpec for contextignore patterns.
+        is_dir: Whether the path is a directory (optional optimization to avoid syscall).
 
     Returns:
         True if the path should be ignored, False otherwise.
     """
-    is_dir = False
     if isinstance(path, str):
         name = os.path.basename(path)
         # Optimized string handling
         path_str = path
-        is_dir = os.path.isdir(path)
+        if is_dir is None:
+            is_dir = os.path.isdir(path)
     else:
         name = path.name
         path_str = str(path)
-        is_dir = path.is_dir()
+        if is_dir is None:
+            is_dir = path.is_dir()
 
     # Always ignore hidden files/dirs
     if name.startswith("."):

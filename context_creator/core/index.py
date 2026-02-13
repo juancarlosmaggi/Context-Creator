@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from datetime import datetime
-import functools
 import concurrent.futures
 import os
 from fastapi import BackgroundTasks
@@ -27,7 +26,6 @@ class IndexStatus:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-@functools.lru_cache(maxsize=32)
 def get_project_structure(base_path: Path) -> Dict[str, Any]:
     """
     Build the project structure tree, respecting .gitignore rules.

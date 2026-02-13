@@ -50,36 +50,13 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
 
     # Create a spec for pruning based on root .gitignore
     # This spec is used to skip traversing into ignored directories
-    prune_spec = pathspec.PathSpec.from_lines("gitignore", patterns)
+    # We maintain a list of active specs to support nested .gitignore files
+    prune_specs = [pathspec.PathSpec.from_lines("gitignore", patterns)]
 
     # Then process all other .gitignore files using os.walk for controlled traversal
-    # We prune directories that are ignored by the root .gitignore
+    # We prune directories that are ignored by the root .gitignore or any nested .gitignore found
     for root, dirs, files in os.walk(git_root):
         root_path = Path(root)
-
-        # Modify dirs in-place to prune traversal
-        # 1. Remove hidden directories (starting with .)
-        # 2. Remove directories ignored by root .gitignore
-
-        # Iterate backwards to safely remove from list
-        for i in range(len(dirs) - 1, -1, -1):
-            d = dirs[i]
-            if d.startswith("."):
-                del dirs[i]
-                continue
-
-            dir_abs = root_path / d
-            try:
-                # Calculate path relative to git_root for checking against prune_spec
-                rel_path = dir_abs.relative_to(git_root)
-                rel_path_str = str(rel_path)
-
-                # Check if the directory itself is ignored
-                if prune_spec.match_file(rel_path_str) or prune_spec.match_file(rel_path_str + "/"):
-                    del dirs[i]
-            except ValueError:
-                # Should not happen if we are traversing under git_root
-                pass
 
         # Check for .gitignore in current directory
         # Skip the root .gitignore as we already processed it
@@ -99,8 +76,41 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
                             # This is already a pattern relative to the .gitignore location
                             adjusted.append(str(relative_dir / line))
                     patterns.extend(adjusted)
+
+                    # Add new spec to prune_specs to filter subdirectories of this directory
+                    prune_specs.append(pathspec.PathSpec.from_lines("gitignore", adjusted))
             except (ValueError, OSError, UnicodeDecodeError):
+                pass
+
+        # Modify dirs in-place to prune traversal
+        # 1. Remove hidden directories (starting with .)
+        # 2. Remove directories ignored by any active ignore spec
+
+        # Iterate backwards to safely remove from list
+        for i in range(len(dirs) - 1, -1, -1):
+            d = dirs[i]
+            if d.startswith("."):
+                del dirs[i]
                 continue
+
+            dir_abs = root_path / d
+            try:
+                # Calculate path relative to git_root for checking against prune_specs
+                rel_path = dir_abs.relative_to(git_root)
+                rel_path_str = str(rel_path)
+
+                # Check if the directory itself is ignored by ANY known spec
+                is_ignored = False
+                for spec in prune_specs:
+                    if spec.match_file(rel_path_str) or spec.match_file(rel_path_str + "/"):
+                        is_ignored = True
+                        break
+
+                if is_ignored:
+                    del dirs[i]
+            except ValueError:
+                # Should not happen if we are traversing under git_root
+                pass
 
     return pathspec.PathSpec.from_lines("gitignore", patterns)
 

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Tuple
 from pathlib import Path
 from datetime import datetime
 import functools
@@ -42,28 +42,36 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
 
-    def build_tree(path: Path, root: Path) -> Optional[Dict[str, Any]]:
+    def build_tree(path: Path, root: Path, is_dir_cached: Optional[bool] = None) -> Optional[Dict[str, Any]]:
+        if is_dir_cached is None:
+            is_dir_cached = path.is_dir()
+
         entry = {
             "path": str(path.relative_to(root)).replace("\\", "/"),
             "name": path.name,
-            "type": "directory" if path.is_dir() else "file",
+            "type": "directory" if is_dir_cached else "file",
             "children": []
         }
 
-        if path.is_dir():
+        if is_dir_cached:
             try:
-                children = []
+                # Store children as tuples: (path_str, name, is_dir_bool)
+                # This avoids keeping DirEntry objects (which can be problematic after iterator close)
+                # and avoids extra stat calls by using cached is_dir result.
+                children_data: List[Tuple[str, str, bool]] = []
                 with os.scandir(path) as it:
-                    for entry in it:
-                        if should_ignore(entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=entry.is_dir()):
+                    for scandir_entry in it:
+                        is_entry_dir = scandir_entry.is_dir()
+                        if should_ignore(scandir_entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
                             continue
-                        children.append(Path(entry.path))
+                        children_data.append((scandir_entry.path, scandir_entry.name, is_entry_dir))
 
                 # Sort directories first, then files, both alphabetically
-                children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
+                children_data.sort(key=lambda x: (not x[2], x[1].lower()))
 
-                for child in children:
-                    child_entry = build_tree(child, root)
+                for path_str, name, is_entry_dir in children_data:
+                    child_path = Path(path_str)
+                    child_entry = build_tree(child_path, root, is_dir_cached=is_entry_dir)
                     if child_entry:
                         entry["children"].append(child_entry)
             except (PermissionError, OSError):
@@ -79,17 +87,20 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     }
 
     try:
-        children = []
+        children_data: List[Tuple[str, str, bool]] = []
         with os.scandir(base_path) as it:
-            for entry in it:
-                if should_ignore(entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=entry.is_dir()):
+            for scandir_entry in it:
+                is_entry_dir = scandir_entry.is_dir()
+                if should_ignore(scandir_entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
                     continue
-                children.append(Path(entry.path))
+                children_data.append((scandir_entry.path, scandir_entry.name, is_entry_dir))
 
-        children.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
+        # Sort directories first, then files, both alphabetically
+        children_data.sort(key=lambda x: (not x[2], x[1].lower()))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = {executor.submit(build_tree, child, base_path): child for child in children}
+            # Submit tasks passing the cached is_dir value to avoid initial stat in build_tree
+            futures = {executor.submit(build_tree, Path(path_str), base_path, is_dir_cached=is_dir): (path_str, name, is_dir) for path_str, name, is_dir in children_data}
             for future in concurrent.futures.as_completed(futures):
                 try:
                     child_entry = future.result()
@@ -97,6 +108,9 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                         root_entry["children"].append(child_entry)
                 except Exception:
                     continue
+
+            # Sort the root children again because ThreadPoolExecutor completion order is non-deterministic
+            root_entry["children"].sort(key=lambda x: (x["type"] != "directory", x["name"].lower()))
     except (PermissionError, OSError):
         pass
 

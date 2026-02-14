@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "context-creator"
-version = "0.1.3"
+version = "0.1.4"
 description = "A FastAPI application for creating context from files and directories"
 readme = "README.md"
 requires-python = ">=3.7"

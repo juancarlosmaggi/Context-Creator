@@ -1,7 +1,7 @@
 import os
 import concurrent.futures
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Iterator
 
 from context_creator.core.ignore import (
     find_git_root,
@@ -10,7 +10,7 @@ from context_creator.core.ignore import (
     should_ignore
 )
 
-def process_files(selected_paths: List[str], base_path: Path) -> str:
+def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
     """
     Process selected files and directories into a single text output.
 
@@ -18,8 +18,8 @@ def process_files(selected_paths: List[str], base_path: Path) -> str:
         selected_paths: List of relative paths to process.
         base_path: The base directory of the project.
 
-    Returns:
-        A string containing the formatted content of all selected files.
+    Yields:
+        Strings containing the formatted content of processed files.
     """
     git_root = find_git_root(base_path)
     ignore_spec = parse_gitignore(git_root) if git_root else None
@@ -113,6 +113,4 @@ def process_files(selected_paths: List[str], base_path: Path) -> str:
     max_workers = min(32, (os.cpu_count() or 1) * 4)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(process_file, sorted_files))
-
-    return "".join(results)
+        yield from executor.map(process_file, sorted_files)

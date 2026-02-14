@@ -27,8 +27,10 @@ dev = [
 context-creator = "context_creator.cli:main"
 
 [tool.setuptools]
-packages = ["context_creator"]
 include-package-data = true
 
+[tool.setuptools.packages.find]
+include = ["context_creator*"]
+
 [tool.setuptools.package-data]
-context_creator = ["templates/*", "static/*"]
+context_creator = ["templates/*", "static/**/*"]

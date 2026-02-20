@@ -10,6 +10,43 @@ from context_creator.core.ignore import (
     should_ignore
 )
 
+# Mapping of file extensions to programming languages for markdown syntax highlighting
+LANGUAGE_MAP = {
+    '.py': 'python',
+    '.js': 'javascript',
+    '.jsx': 'jsx',
+    '.ts': 'typescript',
+    '.tsx': 'tsx',
+    '.php': 'php',
+    '.html': 'html',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.json': 'json',
+    '.md': 'markdown',
+    '.sh': 'bash',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.java': 'java',
+    '.kt': 'kotlin',
+    '.swift': 'swift',
+    '.rb': 'ruby',
+    '.c': 'c',
+    '.cpp': 'cpp',
+    '.h': 'cpp',
+    '.cs': 'csharp',
+    '.m': 'objectivec',
+    '.pl': 'perl',
+    '.lua': 'lua',
+    '.sql': 'sql',
+    '.xml': 'xml',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.toml': 'toml',
+    '.ini': 'ini',
+    '.cfg': 'ini',
+    '.conf': 'ini',
+}
+
 def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
     """
     Process selected files and directories into a single text output.
@@ -35,42 +72,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
 
             # Get file extension for markdown syntax highlighting
             ext = file_path.suffix.lower()
-            lang_map = {
-                '.py': 'python',
-                '.js': 'javascript',
-                '.jsx': 'jsx',
-                '.ts': 'typescript',
-                '.tsx': 'tsx',
-                '.php': 'php',
-                '.html': 'html',
-                '.css': 'css',
-                '.scss': 'scss',
-                '.json': 'json',
-                '.md': 'markdown',
-                '.sh': 'bash',
-                '.go': 'go',
-                '.rs': 'rust',
-                '.java': 'java',
-                '.kt': 'kotlin',
-                '.swift': 'swift',
-                '.rb': 'ruby',
-                '.c': 'c',
-                '.cpp': 'cpp',
-                '.h': 'cpp',
-                '.cs': 'csharp',
-                '.m': 'objectivec',
-                '.pl': 'perl',
-                '.lua': 'lua',
-                '.sql': 'sql',
-                '.xml': 'xml',
-                '.yaml': 'yaml',
-                '.yml': 'yaml',
-                '.toml': 'toml',
-                '.ini': 'ini',
-                '.cfg': 'ini',
-                '.conf': 'ini',
-            }
-            lang = lang_map.get(ext, 'text')
+            lang = LANGUAGE_MAP.get(ext, 'text')
 
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()

@@ -62,6 +62,10 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
 
+    # Pre-calculate strings for performance in loops
+    base_path_str = str(base_path)
+    git_root_str = str(git_root) if git_root else None
+
     def process_file(file_path: Path) -> str:
         relative_path = file_path.relative_to(base_path)
         try:
@@ -89,7 +93,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
 
         if full_path.exists():
             if full_path.is_file():
-                if not should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=False):
+                if not should_ignore(full_path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False):
                     all_files.add(full_path)
             elif full_path.is_dir():
                 # Use os.walk with in-place pruning of dirs to avoid traversing ignored directories
@@ -101,12 +105,12 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                     for i in range(len(dirs) - 1, -1, -1):
                         d = dirs[i]
                         d_path_str = os.path.join(root, d)
-                        if should_ignore(d_path_str, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=True):
+                        if should_ignore(d_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=True):
                             del dirs[i]
 
                     for f in files:
                         f_path_str = os.path.join(root, f)
-                        if not should_ignore(f_path_str, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=False):
+                        if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False):
                             all_files.add(Path(f_path_str))
 
     sorted_files = sorted(list(all_files), key=lambda f: str(f.relative_to(base_path)))

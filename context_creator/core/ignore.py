@@ -114,6 +114,7 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
 
     return pathspec.PathSpec.from_lines("gitignore", patterns)
 
+@lru_cache()
 def parse_contextignore(base_path: Path) -> pathspec.PathSpec:
     """
     Parse .contextignore file at the base path into a PathSpec.

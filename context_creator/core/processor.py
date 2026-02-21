@@ -113,7 +113,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                         if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False):
                             all_files.add(Path(f_path_str))
 
-    sorted_files = sorted(list(all_files), key=lambda f: str(f.relative_to(base_path)))
+    sorted_files = sorted(list(all_files), key=str)
 
     # Limit max workers
     max_workers = min(32, (os.cpu_count() or 1) * 4)

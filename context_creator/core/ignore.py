@@ -137,8 +137,8 @@ def parse_contextignore(base_path: Path) -> pathspec.PathSpec:
 
 def should_ignore(
     path: Union[Path, str],
-    base_path: Path,
-    git_root: Optional[Path],
+    base_path: Union[Path, str],
+    git_root: Optional[Union[Path, str]],
     ignore_spec: Optional[pathspec.PathSpec],
     context_ignore_spec: pathspec.PathSpec,
     is_dir: Optional[bool] = None
@@ -176,7 +176,11 @@ def should_ignore(
     # Check against gitignore patterns
     if git_root and ignore_spec:
         try:
-            git_root_str = str(git_root)
+            if isinstance(git_root, str):
+                git_root_str = git_root
+            else:
+                git_root_str = str(git_root)
+
             if path_str == git_root_str:
                 rel_path_str = "."
                 if ignore_spec.match_file(rel_path_str):
@@ -198,7 +202,11 @@ def should_ignore(
     # Check against contextignore patterns
     if context_ignore_spec:
         try:
-            base_path_str = str(base_path)
+            if isinstance(base_path, str):
+                base_path_str = base_path
+            else:
+                base_path_str = str(base_path)
+
             if path_str == base_path_str:
                 rel_path_str = "."
                 if context_ignore_spec.match_file(rel_path_str):

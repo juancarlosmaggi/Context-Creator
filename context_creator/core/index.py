@@ -40,6 +40,10 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
 
+    # Pre-calculate strings for performance in loops
+    base_path_str = str(base_path)
+    git_root_str = str(git_root) if git_root else None
+
     def build_tree(path: Path, root: Path, is_dir_cached: Optional[bool] = None) -> Optional[Dict[str, Any]]:
         if is_dir_cached is None:
             is_dir_cached = path.is_dir()
@@ -60,7 +64,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 with os.scandir(path) as it:
                     for scandir_entry in it:
                         is_entry_dir = scandir_entry.is_dir()
-                        if should_ignore(scandir_entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
+                        if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
                             continue
                         children_data.append((scandir_entry.path, scandir_entry.name, is_entry_dir))
 
@@ -89,7 +93,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
         with os.scandir(base_path) as it:
             for scandir_entry in it:
                 is_entry_dir = scandir_entry.is_dir()
-                if should_ignore(scandir_entry.path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
+                if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
                     continue
                 children_data.append((scandir_entry.path, scandir_entry.name, is_entry_dir))
 

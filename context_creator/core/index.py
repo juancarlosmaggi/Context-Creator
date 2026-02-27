@@ -54,7 +54,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
             with os.scandir(path) as it:
                 for scandir_entry in it:
                     is_entry_dir = scandir_entry.is_dir()
-                    if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir):
+                    if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir, name=scandir_entry.name):
                         continue
                     entries_data.append((scandir_entry, is_entry_dir))
 

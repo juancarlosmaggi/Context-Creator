@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from datetime import datetime
 from typing import List
+import stat
 
 from context_creator.core.ignore import (
     find_git_root,
@@ -46,11 +47,20 @@ def test_gitignore(path: str):
     test_path = Path(path)
     full_path = base_path / test_path
 
+    try:
+        stat_result = full_path.stat()
+        exists = True
+        is_dir = stat.S_ISDIR(stat_result.st_mode)
+    except OSError:
+        # Matches pathlib.Path.exists() behavior which catches OSError
+        exists = False
+        is_dir = None
+
     result = {
         "path": path,
-        "is_ignored": should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec, name=full_path.name),
-        "exists": full_path.exists(),
-        "is_dir": full_path.is_dir() if full_path.exists() else None,
+        "is_ignored": should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_dir, name=full_path.name),
+        "exists": exists,
+        "is_dir": is_dir,
     }
 
     # Show which patterns would match this path from gitignore

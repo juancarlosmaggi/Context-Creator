@@ -58,16 +58,19 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
     while stack:
         current_path, current_specs = stack.pop()
 
+        gitignore_entry = None
+        dirs = []
+
         try:
             # os.scandir is generally faster and gives us DirEntry objects
             with os.scandir(current_path) as it:
-                entries = list(it)
+                for e in it:
+                    if e.name == ".gitignore" and e.is_file():
+                        gitignore_entry = e
+                    elif e.is_dir(follow_symlinks=False):
+                        dirs.append(e)
         except OSError:
             continue
-
-        # Check for .gitignore in current directory
-        # Skip root .gitignore as we already processed it
-        gitignore_entry = next((e for e in entries if e.name == ".gitignore" and e.is_file()), None)
 
         next_specs = current_specs
         if gitignore_entry and current_path != git_root:
@@ -92,12 +95,6 @@ def parse_gitignore(git_root: Path) -> pathspec.PathSpec:
                     next_specs = current_specs + [new_spec]
             except (ValueError, OSError, UnicodeDecodeError):
                 pass
-
-        # Filter directories to traverse
-        # We iterate in reverse to mimic stack behavior if we want depth-first
-        # (though order usually doesn't strictly matter for correctness here)
-        # We must NOT follow symlinks to avoid infinite loops and match os.walk default behavior
-        dirs = [e for e in entries if e.is_dir(follow_symlinks=False)]
 
         for entry in dirs:
             if entry.name.startswith("."):

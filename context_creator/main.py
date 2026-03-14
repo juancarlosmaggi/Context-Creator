@@ -46,9 +46,17 @@ def test_gitignore(path: str):
     test_path = Path(path)
     full_path = base_path / test_path
 
+    sep = os.sep
+    base_path_str = str(base_path)
+    base_path_prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+    git_root_prefix = None
+    if git_root:
+        git_root_str = str(git_root)
+        git_root_prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+
     result = {
         "path": path,
-        "is_ignored": should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec, name=full_path.name),
+        "is_ignored": should_ignore(full_path, base_path_str, git_root_str if git_root else None, ignore_spec, context_ignore_spec, name=full_path.name, base_path_prefix=base_path_prefix, git_root_prefix=git_root_prefix),
         "exists": full_path.exists(),
         "is_dir": full_path.is_dir() if full_path.exists() else None,
     }

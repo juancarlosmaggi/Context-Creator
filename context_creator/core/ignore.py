@@ -147,7 +147,9 @@ def should_ignore(
     ignore_spec: Optional[pathspec.PathSpec],
     context_ignore_spec: pathspec.PathSpec,
     is_dir: Optional[bool] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
+    base_path_prefix: Optional[str] = None,
+    git_root_prefix: Optional[str] = None
 ) -> bool:
     """
     Determine if a path should be ignored based on .gitignore and .contextignore rules.
@@ -160,6 +162,8 @@ def should_ignore(
         context_ignore_spec: The PathSpec for contextignore patterns.
         is_dir: Whether the path is a directory (optional optimization to avoid syscall).
         name: The name of the file or directory (optional optimization).
+        base_path_prefix: Pre-computed base_path with trailing separator.
+        git_root_prefix: Pre-computed git_root with trailing separator.
 
     Returns:
         True if the path should be ignored, False otherwise.
@@ -196,8 +200,11 @@ def should_ignore(
                 if is_dir and ignore_spec.match_file(rel_path_str + '/'):
                     return True
             else:
-                sep = os.sep
-                prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+                prefix = git_root_prefix
+                if prefix is None:
+                    sep = os.sep
+                    prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+
                 if path_str.startswith(prefix):
                     rel_path_str = path_str[len(prefix):]
                     if ignore_spec.match_file(rel_path_str):
@@ -222,8 +229,11 @@ def should_ignore(
                 if is_dir and context_ignore_spec.match_file(rel_path_str + '/'):
                     return True
             else:
-                sep = os.sep
-                prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+                prefix = base_path_prefix
+                if prefix is None:
+                    sep = os.sep
+                    prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+
                 if path_str.startswith(prefix):
                     rel_path_str = path_str[len(prefix):]
                     if context_ignore_spec.match_file(rel_path_str):

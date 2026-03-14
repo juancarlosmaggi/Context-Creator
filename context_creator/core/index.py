@@ -44,6 +44,12 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     base_path_str = str(base_path)
     git_root_str = str(git_root) if git_root else None
 
+    sep = os.sep
+    base_path_prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+    git_root_prefix = None
+    if git_root_str:
+        git_root_prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+
     def process_directory(path: Union[Path, str], parent_children_list: List[Dict[str, Any]], depth: int = 0) -> List[Tuple[str, List[Dict[str, Any]], int]]:
         """
         Scan a single directory, populate parent_children_list, and return subdirectories to process.
@@ -54,7 +60,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
             with os.scandir(path) as it:
                 for scandir_entry in it:
                     is_entry_dir = scandir_entry.is_dir()
-                    if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir, name=scandir_entry.name):
+                    if should_ignore(scandir_entry.path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=is_entry_dir, name=scandir_entry.name, base_path_prefix=base_path_prefix, git_root_prefix=git_root_prefix):
                         continue
                     entries_data.append((scandir_entry, is_entry_dir))
 

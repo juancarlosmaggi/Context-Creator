@@ -66,6 +66,12 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
     base_path_str = str(base_path)
     git_root_str = str(git_root) if git_root else None
 
+    sep = os.sep
+    base_path_prefix = base_path_str if base_path_str.endswith(sep) else base_path_str + sep
+    git_root_prefix = None
+    if git_root_str:
+        git_root_prefix = git_root_str if git_root_str.endswith(sep) else git_root_str + sep
+
     def process_file(file_path: Path) -> str:
         relative_path = file_path.relative_to(base_path)
         try:
@@ -93,7 +99,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
 
         if full_path.exists():
             if full_path.is_file():
-                if not should_ignore(full_path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=full_path.name):
+                if not should_ignore(full_path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=full_path.name, base_path_prefix=base_path_prefix, git_root_prefix=git_root_prefix):
                     all_files.add(full_path)
             elif full_path.is_dir():
                 # Use os.walk with in-place pruning of dirs to avoid traversing ignored directories
@@ -105,12 +111,12 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                     for i in range(len(dirs) - 1, -1, -1):
                         d = dirs[i]
                         d_path_str = os.path.join(root, d)
-                        if should_ignore(d_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=True, name=d):
+                        if should_ignore(d_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=True, name=d, base_path_prefix=base_path_prefix, git_root_prefix=git_root_prefix):
                             del dirs[i]
 
                     for f in files:
                         f_path_str = os.path.join(root, f)
-                        if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=f):
+                        if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=f, base_path_prefix=base_path_prefix, git_root_prefix=git_root_prefix):
                             all_files.add(Path(f_path_str))
 
     sorted_files = sorted(list(all_files), key=str)

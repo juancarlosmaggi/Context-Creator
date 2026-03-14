@@ -84,7 +84,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
         except (UnicodeDecodeError, PermissionError, OSError):
             return f"# File\n\n```text\n{relative_path}\n```\n\n# Content\n\n```text\n[Unable to process file]\n```\n\n"
 
-    all_files: Set[Path] = set()
+    all_files: Set[str] = set()
     for path_str in selected_paths:
         path = Path(path_str)
         # Handle cases where path might be absolute or relative incorrectly
@@ -94,7 +94,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
         if full_path.exists():
             if full_path.is_file():
                 if not should_ignore(full_path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=full_path.name):
-                    all_files.add(full_path)
+                    all_files.add(str(full_path))
             elif full_path.is_dir():
                 # Use os.walk with in-place pruning of dirs to avoid traversing ignored directories
                 # This is significantly faster than rglob which traverses everything before filtering
@@ -111,9 +111,9 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                     for f in files:
                         f_path_str = os.path.join(root, f)
                         if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=f):
-                            all_files.add(Path(f_path_str))
+                            all_files.add(f_path_str)
 
-    sorted_files = sorted(list(all_files), key=str)
+    sorted_files = [Path(p) for p in sorted(all_files)]
 
     # Limit max workers
     max_workers = min(32, (os.cpu_count() or 1) * 4)

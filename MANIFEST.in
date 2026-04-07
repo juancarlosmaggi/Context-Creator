@@ -1,0 +1,3 @@
+recursive-include context_creator/templates *
+recursive-include context_creator/static *
+recursive-include context_creator/data *.tiktoken

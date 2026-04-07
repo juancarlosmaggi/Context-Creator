@@ -46,7 +46,11 @@ async def index(request: Request, background_tasks: BackgroundTasks):
 async def get_index_status_route():
     """Return the current index status."""
     status = IndexStatus()
-    return {"is_valid": status.is_valid, "is_building": status.is_building}
+    return {
+        "is_valid": status.is_valid,
+        "is_building": status.is_building,
+        "error": status.error,
+    }
 
 @app.post("/process/")
 async def process_files_route(selected_paths: List[str] = Form(...)):
@@ -58,6 +62,8 @@ async def process_files_route(selected_paths: List[str] = Form(...)):
 async def get_project_structure_json():
     """Serve the in-memory project structure."""
     index_status = IndexStatus()
+    if index_status.error:
+        return JSONResponse(content={"error": index_status.error}, status_code=500)
     if not index_status.structure:
         return JSONResponse(content={"error": "Index is not built yet"}, status_code=503)
     return JSONResponse(content=index_status.structure)
@@ -69,6 +75,7 @@ async def rebuild_index(background_tasks: BackgroundTasks):
     index_status = IndexStatus()
     index_status.is_building = True
     index_status.is_valid = False
+    index_status.error = None
 
     # Clear the lru_cache for get_project_structure
         # Clear the lru_cache for get_project_structure safely

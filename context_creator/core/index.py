@@ -2,10 +2,12 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from pathlib import Path
 from datetime import datetime
 import concurrent.futures
+from importlib.resources import as_file, files
 import tiktoken
 import os
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
+from tiktoken.load import load_tiktoken_bpe
 
 from context_creator.core.ignore import (
     find_git_root,
@@ -15,17 +17,38 @@ from context_creator.core.ignore import (
 )
 
 
-# Initialize tiktoken encoding globally to avoid recreation overhead
-try:
-    _enc = tiktoken.get_encoding("cl100k_base")
-except Exception:
-    _enc = None
+CL100K_BASE_HASH = "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7"
+CL100K_BASE_PAT_STR = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}++|\p{N}{1,3}+| ?[^\s\p{L}\p{N}]++[\r\n]*+|\s++$|\s*[\r\n]|\s+(?!\S)|\s"""
+CL100K_BASE_SPECIAL_TOKENS = {
+    "<|endoftext|>": 100257,
+    "<|fim_prefix|>": 100258,
+    "<|fim_middle|>": 100259,
+    "<|fim_suffix|>": 100260,
+    "<|endofprompt|>": 100276,
+}
 
-import os
+_enc: Optional[tiktoken.Encoding] = None
+
+
+def get_encoding() -> tiktoken.Encoding:
+    """Load the bundled cl100k_base encoding without any network dependency."""
+    global _enc
+    if _enc is not None:
+        return _enc
+
+    bpe_resource = files("context_creator").joinpath("data", "cl100k_base.tiktoken")
+    with as_file(bpe_resource) as bpe_path:
+        mergeable_ranks = load_tiktoken_bpe(str(bpe_path), expected_hash=CL100K_BASE_HASH)
+
+    _enc = tiktoken.Encoding(
+        name="cl100k_base",
+        pat_str=CL100K_BASE_PAT_STR,
+        mergeable_ranks=mergeable_ranks,
+        special_tokens=CL100K_BASE_SPECIAL_TOKENS,
+    )
+    return _enc
 
 def get_token_count(file_path: str) -> int:
-    if not _enc:
-        return 0
     try:
         # Don't try to encode files larger than 1MB to prevent blocking the event loop
         if os.path.getsize(file_path) > 1 * 1024 * 1024:
@@ -33,8 +56,8 @@ def get_token_count(file_path: str) -> int:
 
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        return len(_enc.encode(content))
-    except Exception:
+        return len(get_encoding().encode(content, disallowed_special=()))
+    except (UnicodeDecodeError, PermissionError, OSError):
         return 0
 
 class IndexStatus:
@@ -44,6 +67,7 @@ class IndexStatus:
     is_valid: bool = False
     structure: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
+    error: Optional[str] = None
 
     def __new__(cls):
         if not cls._instance:
@@ -147,13 +171,9 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
             done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
 
             for future in done:
-                try:
-                    new_tasks = future.result()
-                    for task_path, task_list, task_depth in new_tasks:
-                        futures.add(executor.submit(process_directory, task_path, task_list, task_depth))
-                except Exception:
-                    # Log error if needed, but ensure we don't crash everything
-                    pass
+                new_tasks = future.result()
+                for task_path, task_list, task_depth in new_tasks:
+                    futures.add(executor.submit(process_directory, task_path, task_list, task_depth))
 
     return root_entry
 
@@ -170,6 +190,11 @@ async def build_and_save_index(base_path: Path) -> None:
         index_status.structure = structure
         index_status.created_at = datetime.now()
         index_status.is_valid = True
+        index_status.error = None
+    except Exception as exc:
+        index_status.structure = None
+        index_status.is_valid = False
+        index_status.error = str(exc)
     finally:
         index_status.is_building = False
 
@@ -191,5 +216,6 @@ async def get_or_build_index(base_path: Path, background_tasks: BackgroundTasks)
     # If not already building, start the build process
     if not index_status.is_building:
         index_status.is_building = True
+        index_status.error = None
         background_tasks.add_task(build_and_save_index, base_path)
     return None

@@ -34,4 +34,4 @@ include-package-data = true
 include = ["context_creator*"]
 
 [tool.setuptools.package-data]
-context_creator = ["templates/*", "static/**/*"]
+context_creator = ["templates/*", "static/**/*", "data/*.tiktoken"]

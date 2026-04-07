@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 
 import context_creator.core.index as index_module
-from context_creator.core.index import get_project_structure, get_token_count
+from context_creator.core.index import (
+    get_project_structure,
+    get_token_cache_path,
+    get_token_count,
+    load_token_cache,
+)
 
 def test_get_project_structure_correctness():
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -59,3 +64,25 @@ def test_get_token_count_handles_literal_special_token_strings(tmp_path):
     temp_file_path.write_text("literal <|endoftext|> token in source", encoding="utf-8")
 
     assert get_token_count(str(temp_file_path)) > 0
+
+
+def test_token_cache_is_written_and_reused(monkeypatch, tmp_path):
+    file_path = tmp_path / "cached.py"
+    file_path.write_text("print('cached token count')\n", encoding="utf-8")
+
+    first_structure = get_project_structure(tmp_path)
+    first_tokens = first_structure["children"][0]["tokens"]
+    assert first_tokens > 0
+
+    cache_path = get_token_cache_path(tmp_path)
+    assert cache_path.exists()
+    cache_payload = load_token_cache(tmp_path)
+    assert cache_payload["cached.py"]["tokens"] == first_tokens
+
+    def fail_recount(_file_path: str) -> int:
+        raise AssertionError("token count should have been served from cache")
+
+    monkeypatch.setattr(index_module, "get_token_count", fail_recount)
+
+    second_structure = get_project_structure(tmp_path)
+    assert second_structure["children"][0]["tokens"] == first_tokens

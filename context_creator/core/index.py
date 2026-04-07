@@ -3,8 +3,10 @@ from pathlib import Path
 from datetime import datetime
 import concurrent.futures
 from importlib.resources import as_file, files
+import json
 import tiktoken
 import os
+import threading
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 from tiktoken.load import load_tiktoken_bpe
@@ -26,6 +28,8 @@ CL100K_BASE_SPECIAL_TOKENS = {
     "<|fim_suffix|>": 100260,
     "<|endofprompt|>": 100276,
 }
+TOKEN_CACHE_VERSION = 1
+TOKEN_CACHE_FILENAME = "context_creator_tokens.json"
 
 _enc: Optional[tiktoken.Encoding] = None
 
@@ -60,6 +64,46 @@ def get_token_count(file_path: str) -> int:
     except (UnicodeDecodeError, PermissionError, OSError):
         return 0
 
+
+def get_token_cache_path(base_path: Path) -> Path:
+    return base_path / ".cache" / TOKEN_CACHE_FILENAME
+
+
+def load_token_cache(base_path: Path) -> Dict[str, Dict[str, int]]:
+    cache_path = get_token_cache_path(base_path)
+    if not cache_path.exists():
+        return {}
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if payload.get("version") != TOKEN_CACHE_VERSION:
+        return {}
+    if payload.get("encoding_hash") != CL100K_BASE_HASH:
+        return {}
+
+    files_payload = payload.get("files")
+    if not isinstance(files_payload, dict):
+        return {}
+    return files_payload
+
+
+def save_token_cache(base_path: Path, token_cache: Dict[str, Dict[str, int]]) -> None:
+    cache_path = get_token_cache_path(base_path)
+    cache_path.parent.mkdir(exist_ok=True)
+    payload = {
+        "version": TOKEN_CACHE_VERSION,
+        "encoding_hash": CL100K_BASE_HASH,
+        "files": token_cache,
+    }
+    temp_path = cache_path.with_suffix(".tmp")
+    with open(temp_path, "w", encoding="utf-8") as cache_file:
+        json.dump(payload, cache_file, separators=(",", ":"))
+    os.replace(temp_path, cache_path)
+
 class IndexStatus:
     """Singleton class to store the project index status."""
     _instance = None
@@ -84,14 +128,43 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
     Returns:
         A dictionary representing the project structure.
     """
+    # Fail the build immediately if tiktoken itself is not healthy.
+    get_encoding()
+
     git_root = find_git_root(base_path)
     ignore_spec = parse_gitignore(git_root) if git_root else None
     context_ignore_spec = parse_contextignore(base_path)
+    token_cache = load_token_cache(base_path)
+    token_cache_lock = threading.Lock()
+    seen_files = set()
 
     # Pre-calculate strings for performance in loops
     base_path_str = str(base_path)
     base_path_prefix = base_path_str if base_path_str.endswith(os.sep) else base_path_str + os.sep
     git_root_str = str(git_root) if git_root else None
+
+    def get_cached_token_count(file_path: str, relative_path: str, file_size: int, file_mtime_ns: int) -> int:
+        with token_cache_lock:
+            cached = token_cache.get(relative_path)
+            if (
+                cached
+                and cached.get("size") == file_size
+                and cached.get("mtime_ns") == file_mtime_ns
+            ):
+                seen_files.add(relative_path)
+                return int(cached["tokens"])
+
+        token_count = get_token_count(file_path)
+
+        with token_cache_lock:
+            token_cache[relative_path] = {
+                "size": file_size,
+                "mtime_ns": file_mtime_ns,
+                "tokens": token_count,
+            }
+            seen_files.add(relative_path)
+
+        return token_count
 
     def process_directory(path: Union[Path, str], parent_children_list: List[Dict[str, Any]], depth: int = 0) -> List[Tuple[str, List[Dict[str, Any]], int]]:
         """
@@ -134,7 +207,13 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 }
 
                 if not is_entry_dir:
-                    entry["tokens"] = get_token_count(entry_path_str)
+                    file_stat = scandir_entry.stat(follow_symlinks=False)
+                    entry["tokens"] = get_cached_token_count(
+                        entry_path_str,
+                        rel_path,
+                        file_stat.st_size,
+                        file_stat.st_mtime_ns,
+                    )
 
                 parent_children_list.append(entry)
 
@@ -174,6 +253,10 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 new_tasks = future.result()
                 for task_path, task_list, task_depth in new_tasks:
                     futures.add(executor.submit(process_directory, task_path, task_list, task_depth))
+
+    with token_cache_lock:
+        pruned_cache = {path: token_cache[path] for path in seen_files if path in token_cache}
+    save_token_cache(base_path, pruned_cache)
 
     return root_entry
 

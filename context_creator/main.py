@@ -5,14 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from datetime import datetime
 from typing import List
-import stat
 
-from context_creator.core.ignore import (
-    find_git_root,
-    parse_gitignore,
-    parse_contextignore,
-    should_ignore
-)
 from context_creator.core.index import (
     IndexStatus,
     get_project_structure,
@@ -32,58 +25,6 @@ templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
 CACHE_DIR = Path(".cache")
 CACHE_DIR.mkdir(exist_ok=True)
-
-# Add a debugging function to test gitignore patterns
-@app.get("/api/test-gitignore/{path:path}")
-def test_gitignore(path: str):
-    """Test if a specific path would be ignored by gitignore rules."""
-    base_path = Path.cwd()
-    git_root = find_git_root(base_path)
-    if not git_root:
-        return {"error": "No git repository found"}
-    ignore_spec = parse_gitignore(git_root)
-    context_ignore_spec = parse_contextignore(base_path)
-
-    test_path = Path(path)
-    full_path = base_path / test_path
-
-    try:
-        stat_result = full_path.stat()
-        exists = True
-        is_dir = stat.S_ISDIR(stat_result.st_mode)
-    except OSError:
-        # Matches pathlib.Path.exists() behavior which catches OSError
-        exists = False
-        is_dir = None
-
-    result = {
-        "path": path,
-        "is_ignored": should_ignore(full_path, base_path, git_root, ignore_spec, context_ignore_spec, is_dir=is_dir, name=full_path.name),
-        "exists": exists,
-        "is_dir": is_dir,
-    }
-
-    # Show which patterns would match this path from gitignore
-    git_pattern_matches = []
-    if git_root and full_path.is_relative_to(git_root):
-        rel_path = full_path.relative_to(git_root)
-        if ignore_spec:
-            for pattern in ignore_spec.patterns:
-                if pattern.match_file(str(rel_path)) or pattern.match_file(str(rel_path) + '/'):
-                    git_pattern_matches.append(str(pattern))
-    result["git_matching_patterns"] = git_pattern_matches
-
-    # Show which patterns would match this path from contextignore
-    context_pattern_matches = []
-    if full_path.is_relative_to(base_path):
-        rel_path = full_path.relative_to(base_path)
-        if context_ignore_spec:
-            for pattern in context_ignore_spec.patterns:
-                if pattern.match_file(str(rel_path)) or pattern.match_file(str(rel_path) + '/'):
-                    context_pattern_matches.append(str(pattern))
-    result["context_matching_patterns"] = context_pattern_matches
-
-    return result
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, background_tasks: BackgroundTasks):

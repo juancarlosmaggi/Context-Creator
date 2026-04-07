@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from pathlib import Path
 from datetime import datetime
 import concurrent.futures
+import tiktoken
 import os
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
@@ -12,6 +13,23 @@ from context_creator.core.ignore import (
     parse_contextignore,
     should_ignore
 )
+
+
+# Initialize tiktoken encoding globally to avoid recreation overhead
+try:
+    _enc = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    _enc = None
+
+def get_token_count(file_path: str) -> int:
+    if not _enc:
+        return 0
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return len(_enc.encode(content))
+    except Exception:
+        return 0
 
 class IndexStatus:
     """Singleton class to store the project index status."""
@@ -77,12 +95,17 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
 
                 rel_path = rel_path.replace("\\", "/")
 
+
                 entry = {
                     "path": rel_path,
                     "name": scandir_entry.name,
                     "type": "directory" if is_entry_dir else "file",
                     "children": []
                 }
+
+                if not is_entry_dir:
+                    entry["tokens"] = get_token_count(entry_path_str)
+
                 parent_children_list.append(entry)
 
                 if is_entry_dir:

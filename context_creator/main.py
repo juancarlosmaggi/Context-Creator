@@ -71,7 +71,7 @@ async def rebuild_index(background_tasks: BackgroundTasks):
     index_status.is_valid = False
 
     # Clear the lru_cache for get_project_structure
-    get_project_structure.cache_clear()
+    # get_project_structure.cache_clear()
 
     background_tasks.add_task(build_and_save_index, base_path)
     return {"status": "rebuilding"}

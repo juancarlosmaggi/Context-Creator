@@ -21,10 +21,16 @@ try:
 except Exception:
     _enc = None
 
+import os
+
 def get_token_count(file_path: str) -> int:
     if not _enc:
         return 0
     try:
+        # Don't try to encode files larger than 1MB to prevent blocking the event loop
+        if os.path.getsize(file_path) > 1 * 1024 * 1024:
+            return 0
+
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         return len(_enc.encode(content))

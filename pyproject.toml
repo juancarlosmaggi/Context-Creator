@@ -15,6 +15,7 @@ dependencies = [
     "jinja2",
     "python-multipart",
     "pathspec",
+    "tiktoken",
 ]
 
 [project.optional-dependencies]

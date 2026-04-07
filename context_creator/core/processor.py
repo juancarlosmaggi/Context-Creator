@@ -64,10 +64,17 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
 
     # Pre-calculate strings for performance in loops
     base_path_str = str(base_path)
+    base_path_prefix = base_path_str if base_path_str.endswith(os.sep) else base_path_str + os.sep
     git_root_str = str(git_root) if git_root else None
 
     def process_file(file_path: Path) -> str:
-        relative_path = file_path.relative_to(base_path)
+        file_path_str = str(file_path)
+        if file_path_str.startswith(base_path_prefix):
+            relative_path = file_path_str[len(base_path_prefix):]
+        elif file_path_str == base_path_str:
+            relative_path = ""
+        else:
+            relative_path = os.path.relpath(file_path_str, base_path_str)
         try:
             file_stat = file_path.stat()
             if file_stat.st_size > 10 * 1024 * 1024: # Skip files > 10MB

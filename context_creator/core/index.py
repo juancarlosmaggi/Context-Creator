@@ -42,6 +42,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
 
     # Pre-calculate strings for performance in loops
     base_path_str = str(base_path)
+    base_path_prefix = base_path_str if base_path_str.endswith(os.sep) else base_path_str + os.sep
     git_root_str = str(git_root) if git_root else None
 
     def process_directory(path: Union[Path, str], parent_children_list: List[Dict[str, Any]], depth: int = 0) -> List[Tuple[str, List[Dict[str, Any]], int]]:
@@ -66,13 +67,13 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 # scandir_entry.path is an absolute string
 
                 entry_path_str = scandir_entry.path
-                if entry_path_str.startswith(base_path_str):
-                    rel_path = entry_path_str[len(base_path_str):]
-                    if rel_path.startswith(os.sep):
-                        rel_path = rel_path[1:]
+                if entry_path_str.startswith(base_path_prefix):
+                    rel_path = entry_path_str[len(base_path_prefix):]
+                elif entry_path_str == base_path_str:
+                    rel_path = ""
                 else:
                     # Fallback for unexpected paths
-                    rel_path = str(Path(entry_path_str).relative_to(base_path))
+                    rel_path = os.path.relpath(entry_path_str, base_path_str)
 
                 rel_path = rel_path.replace("\\", "/")
 

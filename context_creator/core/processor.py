@@ -1,4 +1,5 @@
 import os
+import stat
 import concurrent.futures
 from pathlib import Path
 from typing import List, Set, Iterator
@@ -98,11 +99,12 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
         # We assume selected_paths are relative to base_path
         full_path = base_path / path
 
-        if full_path.exists():
-            if full_path.is_file():
+        try:
+            full_stat = full_path.stat()
+            if stat.S_ISREG(full_stat.st_mode):
                 if not should_ignore(full_path, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=full_path.name):
                     all_files.add(str(full_path))
-            elif full_path.is_dir():
+            elif stat.S_ISDIR(full_stat.st_mode):
                 # Use os.walk with in-place pruning of dirs to avoid traversing ignored directories
                 # This is significantly faster than rglob which traverses everything before filtering
                 # Using strings instead of Path objects during traversal significantly reduces overhead
@@ -119,6 +121,8 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                         f_path_str = os.path.join(root, f)
                         if not should_ignore(f_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=False, name=f):
                             all_files.add(f_path_str)
+        except OSError:
+            pass
 
     sorted_files = [Path(p) for p in sorted(all_files)]
 

@@ -52,10 +52,13 @@ def get_encoding() -> tiktoken.Encoding:
     )
     return _enc
 
-def get_token_count(file_path: str) -> int:
+def get_token_count(file_path: str, file_size: Optional[int] = None) -> int:
     try:
         # Don't try to encode files larger than 1MB to prevent blocking the event loop
-        if os.path.getsize(file_path) > 1 * 1024 * 1024:
+        if file_size is None:
+            file_size = os.path.getsize(file_path)
+
+        if file_size > 1 * 1024 * 1024:
             return 0
 
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -154,7 +157,7 @@ def get_project_structure(base_path: Path) -> Dict[str, Any]:
                 seen_files.add(relative_path)
                 return int(cached["tokens"])
 
-        token_count = get_token_count(file_path)
+        token_count = get_token_count(file_path, file_size)
 
         with token_cache_lock:
             token_cache[relative_path] = {

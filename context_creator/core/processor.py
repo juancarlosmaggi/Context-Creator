@@ -111,11 +111,7 @@ def process_files(selected_paths: List[str], base_path: Path) -> Iterator[str]:
                 full_path_str = str(full_path)
                 for root, dirs, files in os.walk(full_path_str):
                     # Modify dirs in-place to skip ignored directories
-                    for i in range(len(dirs) - 1, -1, -1):
-                        d = dirs[i]
-                        d_path_str = os.path.join(root, d)
-                        if should_ignore(d_path_str, base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=True, name=d):
-                            del dirs[i]
+                    dirs[:] = [d for d in dirs if not should_ignore(os.path.join(root, d), base_path_str, git_root_str, ignore_spec, context_ignore_spec, is_dir=True, name=d)]
 
                     for f in files:
                         f_path_str = os.path.join(root, f)
